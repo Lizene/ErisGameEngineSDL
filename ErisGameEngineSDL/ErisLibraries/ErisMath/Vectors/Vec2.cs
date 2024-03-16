@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ErisGameEngineSDL.ErisMath.Vectors
+namespace ErisMath
 {
     internal class Vec2
     {
@@ -29,10 +29,9 @@ namespace ErisGameEngineSDL.ErisMath.Vectors
             get { return _y; }
             set { _y = value; }
         }
-        public float magnitude()
-        {
-            return (float)Math.Sqrt(Math.Pow(_x, 2) + Math.Pow(_y, 2));
-        }
+        public float magnitude() =>
+            (float)Math.Sqrt(Math.Pow(_x, 2) + Math.Pow(_y, 2));
+        
         public Vec2 normalized()
         {
             float m = magnitude();
@@ -51,5 +50,6 @@ namespace ErisGameEngineSDL.ErisMath.Vectors
 
         public static Vec2 operator /(Vec2 a, int b) => new Vec2(a.x / b, a.y / b);
         public static Vec2 operator /(Vec2 a, float b) => new Vec2(a.x / b, a.y / b);
+        public override string ToString() => $"Vector 2D: ({_x}, {_y})";
     }
 }
