@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ErisMath
 {
-    internal class Vec2
+    internal struct Vec2
     {
         float _x, _y;
         public static Vec2 zero = new Vec2(0,0);

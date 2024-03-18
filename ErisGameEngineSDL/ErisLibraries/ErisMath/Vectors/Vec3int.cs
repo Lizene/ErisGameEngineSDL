@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ErisMath
 {
-    internal class Vec3int
+    internal struct Vec3int
     {
         int _x, _y, _z;
         public int x { get { return _x; } set { _x = value; } }
