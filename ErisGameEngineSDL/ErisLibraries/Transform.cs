@@ -17,6 +17,7 @@ namespace ErisGameEngineSDL.ErisLibraries
         public List<Transform> children;
         public static Transform zero = 
             new Transform(Vec3.zero, Quaternion.Identity, Vec3.one, null);
+
         public Transform(Vec3 position, Quaternion rotation, Vec3 scale, Transform? parent) 
         {
             this.position = position;

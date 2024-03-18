@@ -19,8 +19,8 @@ namespace ErisMath
         public static Vec3 right = new Vec3(1, 0, 0);
         public static Vec3 down = new Vec3(0, -1, 0);
         public static Vec3 up = new Vec3(0, 1, 0);
-        public static Vec3 forward = new Vec3(0, 0, -1);
-        public static Vec3 back = new Vec3(0, 0, 1);
+        public static Vec3 forward = new Vec3(0, 0, 1);
+        public static Vec3 back = new Vec3(0, 0, -1);
         public Vec3(float x, float y, float z)
         {
             _x = x; _y = y; _z = z;

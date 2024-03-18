@@ -10,6 +10,7 @@ using System.Runtime;
 using ErisGameEngineSDL.ErisLibraries;
 using ErisLibraries;
 using System.Numerics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ErisGameEngineSDL
 {
@@ -19,19 +20,23 @@ namespace ErisGameEngineSDL
         SDL.SDL_Event e;
         public nint window, renderer = IntPtr.Zero;
         Vec2int windowSize, screenSize, halfScreenSize;
-        
-        Pipeline pipeline;
+
+        [AllowNull] Pipeline pipeline;
         SDL.SDL_FRect square;
         Vec2 squarePos;
         uint deltaTime;
         Vec2int wasdComposite;
+        int udComposite;
 
         ushort fpsLimit = 60;
         uint deltaTimeFloor;
 
         bool wireFrameMode = true;
 
-        List<GameObject> sceneGameObjects;
+        [AllowNull] Transform cameraTransform;
+        static readonly float cameraMoveSpeed = 3f;
+
+        [AllowNull] List<GameObject> sceneGameObjects;
         public Game() 
         {
 
@@ -74,20 +79,21 @@ namespace ErisGameEngineSDL
         void InitWindow()
         {
             SDL.SDL_Init(SDL.SDL_INIT_VIDEO);
-            window = IntPtr.Zero;
             SDL.SDL_DisplayMode displayMode;
             SDL.SDL_GetCurrentDisplayMode(0, out displayMode);
+
             screenSize = new Vec2int(displayMode.w, displayMode.h);
-            Vec2int targetResolution = screenSize / 2;
-            Console.WriteLine(targetResolution);
-            pipeline = new Pipeline(targetResolution, 80);
+            Vec2int targetResolution = screenSize / 4;
             halfScreenSize = screenSize / 2;
             windowSize = halfScreenSize;
             Vec2int leftTop = halfScreenSize - windowSize / 2;
+
             window = SDL.SDL_CreateWindow(
                 "Eris Game Engine", leftTop.x, leftTop.y, windowSize.x, windowSize.y,
                 SDL.SDL_WindowFlags.SDL_WINDOW_RESIZABLE);
             renderer = SDL.SDL_CreateRenderer(window, -1, 0);
+            cameraTransform = new Transform(new Vec3(0,0,-7));
+            pipeline = new Pipeline(targetResolution, 80, cameraTransform);
         }
         void InitTime()
         {
@@ -96,6 +102,7 @@ namespace ErisGameEngineSDL
         void InitInput()
         {
             wasdComposite = Vec2int.zero;
+            udComposite = 0;
         }
         void InputEvents()
         {
@@ -118,6 +125,10 @@ namespace ErisGameEngineSDL
                                 wasdComposite.y--; break;
                             case SDL.SDL_Keycode.SDLK_d:
                                 wasdComposite.x++; break;
+                            case SDL.SDL_Keycode.SDLK_LCTRL:
+                                udComposite--; break;
+                            case SDL.SDL_Keycode.SDLK_SPACE:
+                                udComposite++; break;
                         }
                         break;
                     case SDL.SDL_EventType.SDL_KEYUP:
@@ -131,6 +142,10 @@ namespace ErisGameEngineSDL
                                 wasdComposite.y++; break;
                             case SDL.SDL_Keycode.SDLK_d:
                                 wasdComposite.x--; break;
+                            case SDL.SDL_Keycode.SDLK_LCTRL:
+                                udComposite++; break;
+                            case SDL.SDL_Keycode.SDLK_SPACE:
+                                udComposite--; break;
                         }
                         break;
                 }
@@ -138,6 +153,16 @@ namespace ErisGameEngineSDL
         }
         void TransformObjects()
         {
+            // Transform camera
+            Vec3 forward = Vec3.forward; //Replace with Transform.forward, .right and .up when you get quaternions done
+            Vec3 right = Vec3.right;
+            Vec3 up = Vec3.up;
+            Vec3 inputVec = new Vec3(wasdComposite.x, udComposite, wasdComposite.y).normalized();
+            Vec3 moveDir = (inputVec.x*right + inputVec.y*up + inputVec.z*forward).normalized();
+            if (moveDir.magnitude() > 0.01f)
+            cameraTransform.position += moveDir * cameraMoveSpeed * deltaTime/1000f;
+
+            /* Move a square on screen;
             if (!(wasdComposite.magnitude() < 0.01f))
             {
                 var newPos = squarePos + wasdComposite.normalized() * 0.2f * deltaTime;
@@ -146,6 +171,7 @@ namespace ErisGameEngineSDL
                     squarePos = newPos;
             }
             square.x = squarePos.x; square.y = windowSize.y - squarePos.y;
+            */
         }
         void Draw()
         {
@@ -166,7 +192,6 @@ namespace ErisGameEngineSDL
                 windowFit.y = windowSize.y;
                 windowFit.x = (int)(windowSize.y * resRatio);
             }
-            Console.WriteLine($"{sizeRatio}, {windowFit}");
             var halfRes = res / 2;
             Vec2 ratio = new Vec2(windowSize.x / (float)res.x, windowSize.y / (float)res.y);
 
@@ -178,20 +203,14 @@ namespace ErisGameEngineSDL
             rect.w = windowFit.x; rect.h = windowFit.y;
             Vec2int fitStart = new Vec2int((windowSize.x - windowFit.x) / 2, (windowSize.y - windowFit.y) / 2);
             rect.x = fitStart.x; rect.y = fitStart.y;
-            /*
-            rect.w = 100; rect.h = 50;
-            rect.x = windowSize.x/ 2; rect.y = windowSize.y / 2;
-            */
             SDL.SDL_RenderFillRect(renderer, ref rect);
             SDL.SDL_SetRenderDrawColor(renderer, 0, 255, 150, 1);
+            Vec2 fitResRatio = new Vec2(windowFit.x/(float)res.x,windowFit.y/(float)res.y);
+            int pointYstart = windowSize.y - fitStart.y;
             if (wireFrameMode)
             {
                 var renderResult = pipeline.RenderGameObjectsWireFrame(sceneGameObjects.ToArray());
                 Vec2int[] pixelPositions = renderResult.Item1;
-                foreach ( var pixelPosition in pixelPositions)
-                {
-                    //Console.WriteLine(pixelPosition);
-                }
                 int[] lines = renderResult.Item2;
                 List<SDL.SDL_Point> points = new List<SDL.SDL_Point>();
                 
@@ -199,10 +218,9 @@ namespace ErisGameEngineSDL
                 {
                     var point = new SDL.SDL_Point();
                     var pixelPos = pixelPositions[lines[i]];
-                    point.x = fitStart.x+(int)((pixelPos.x / (float)res.x)*windowFit.x);
-                    point.y = windowSize.y-(fitStart.y+(int)((pixelPos.y/(float)res.y)*windowFit.y));
+                    point.x = fitStart.x + (int)(pixelPos.x * fitResRatio.x);
+                    point.y = pointYstart - (int)(pixelPos.y * fitResRatio.y);
                     points.Add(point);
-                    Console.WriteLine($"{point.x}, {point.y}");
                 }
                 SDL.SDL_RenderDrawLines(renderer, points.ToArray(), points.Count);
             }

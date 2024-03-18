@@ -17,21 +17,24 @@ namespace ErisGameEngineSDL
         float viewPortDistance;
         Vec3[,] frameBuffer;
         float[,] depthBuffer;
-        Vec3 camPos;
-        public Vec2int targetResolution; 
-        int[] triangleLineIndexes = [0, 1, 1, 2, 2, 0];
-        public Pipeline(Vec2int targetRes, float FOV) 
+        static readonly int[] triangleLineIndexes = [0, 1, 1, 2, 2, 0];
+
+        public Vec2int targetResolution;
+        float FOV;
+        Transform cameraTransform;
+        public Pipeline(Vec2int targetResolution, float FOV, Transform cameraTransform) 
         {
-            targetResolution = targetRes;
-            frameBuffer = new Vec3[targetRes.x, targetRes.y];
-            depthBuffer = new float[targetRes.x, targetRes.y];
+            this.targetResolution = targetResolution;
+            this.cameraTransform = cameraTransform;
+            this.FOV = FOV;
+            frameBuffer = new Vec3[targetResolution.x, targetResolution.y];
+            depthBuffer = new float[targetResolution.x, targetResolution.y];
             viewPortSize = Vec2.zero;
             viewPortSize.y = 10;
-            float ratio = targetRes.x / (float)targetRes.y;
+            float ratio = targetResolution.x / (float)targetResolution.y;
             viewPortSize.x = viewPortSize.y * ratio;
             halfViewPortSize = viewPortSize / 2;
             viewPortDistance = (float)(viewPortSize.x / (2 * Math.Tan(Constants.deg2rad*FOV/2)));
-            camPos = new Vec3(0,0,-10);
         }
         /*
         public Vec3[,] RenderGameObjects(GameObject[] gameObjects)
@@ -94,7 +97,7 @@ namespace ErisGameEngineSDL
         }
         Vec2 WorldToViewport(Vec3 v)
         {
-            v -= camPos;
+            v -= cameraTransform.position;
             float xProj = viewPortDistance*v.x/v.z;
             float yProj = viewPortDistance*v.y/v.z;
             return new Vec2(xProj, yProj);
