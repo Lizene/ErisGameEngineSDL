@@ -5,7 +5,6 @@ using SDL2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -81,10 +80,12 @@ namespace ErisGameEngineSDL
         }
         Tuple<Vec2int[], int[]> RenderWireFrame(GameObject go)
         {
-            Vec3[] vertices = go.mesh.vertices;
-            Vec3 goPos = go.transform.position;
+            Vec3[] vertices = go.deformedMesh.vertices;
+            Vec3 relPos = cameraTransform.position - go.transform.position;
+            Vec3[] verticesRelPos= vertices.Select(v => relPos+v).ToArray();
+            Vec3[] verticesRotated = Quaternion.RotateVectors(verticesRelPos, cameraTransform.rotation.inverted());
             Vec2int[] goVertexPixelPositions =
-                vertices.Select(x => ViewportToFramePos(WorldToViewport(goPos + x))).ToArray();
+                verticesRotated.Select(RelToFramePos).ToArray();
             List<int> lines = new List<int>();
             Triangle[] triangles = go.mesh.triangles;
             foreach (Triangle triangle in triangles) 
@@ -95,9 +96,8 @@ namespace ErisGameEngineSDL
             }
             return new Tuple<Vec2int[], int[]>(goVertexPixelPositions, lines.ToArray());
         }
-        Vec2 WorldToViewport(Vec3 v)
+        Vec2 RelPosToViewport(Vec3 v)
         {
-            v -= cameraTransform.position;
             float xProj = viewPortDistance*v.x/v.z;
             float yProj = viewPortDistance*v.y/v.z;
             return new Vec2(xProj, yProj);
@@ -108,6 +108,10 @@ namespace ErisGameEngineSDL
                    (int)Math.Round(targetResolution.x * (viewPortPos.x / viewPortSize.x + 0.5f)),
                    (int)Math.Round(targetResolution.y * (viewPortPos.y / viewPortSize.y + 0.5f)));
             return framePos;
+        }
+        Vec2int RelToFramePos(Vec3 v)
+        {
+            return ViewportToFramePos(RelPosToViewport(v));
         }
 
         Tuple<bool,bool> IsGameObjectInsideFrustum(GameObject go)

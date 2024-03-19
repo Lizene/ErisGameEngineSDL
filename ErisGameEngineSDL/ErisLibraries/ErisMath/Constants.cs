@@ -9,7 +9,7 @@ namespace ErisMath
 {
     internal static class Constants
     {
-        public const double deg2rad = Math.Tau / 360d;
-        public const double rad2deg = 360d / Math.Tau;
+        public const float deg2rad = (float)(Math.Tau / 360d);
+        public const float rad2deg = (float)(360d / Math.Tau);
     }
 }

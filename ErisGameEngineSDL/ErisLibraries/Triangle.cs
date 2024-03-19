@@ -18,5 +18,8 @@ namespace ErisLibraries
             this.normal = normal;
             this.color = color;
         }
+        public static Vec3 TriangleNormal(Vec3[] apices)
+            => Vec3.Cross(apices[1] - apices[0], apices[2] - apices[1]).normalized();
+        
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ErisMath;
 
 namespace ErisMath
 {
@@ -35,7 +36,10 @@ namespace ErisMath
         public static float Dot(Vec3 a, Vec3 b) => a.x * b.x + a.y * b.y + a.z * b.z;
         public static Vec3 Cross(Vec3 a, Vec3 b) =>
             new Vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
-
+        public void RotateAroundAxis(float angle, Vec3 axis)
+        {
+            this = Quaternion.RotateVector(this, Quaternion.AngleAxis(angle, axis));
+        }
         public static Vec3 operator +(Vec3 a, Vec3 b) => new Vec3(a.x + b.x, a.y + b.y, a.z + b.z);
         public static Vec3 operator -(Vec3 a, Vec3 b) => new Vec3(a.x - b.x, a.y - b.y, a.z - b.z);
         public static Vec3 operator -(Vec3 a) => new Vec3(-a.x, -a.y, -a.z);

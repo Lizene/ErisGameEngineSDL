@@ -1,4 +1,5 @@
 ﻿using ErisLibraries;
+using ErisMath;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,16 +13,39 @@ namespace ErisGameEngineSDL.ErisLibraries
     internal class GameObject
     {
         public Mesh mesh;
-        Transform _transform;
-        public Transform transform { get { return _transform;  } }
+        public Mesh deformedMesh;
+        public Transform transform { get; }
+
         public GameObject(Mesh mesh, Transform transform) 
         {
             this.mesh = mesh;
-            _transform = transform;
+            deformedMesh = new Mesh();
+            deformedMesh.vertices = new Vec3[mesh.vertices.Length];
+            deformedMesh.triangles = new Triangle[mesh.triangles.Length];
+            mesh.triangles.CopyTo(deformedMesh.triangles,0);
+            this.transform = transform;
+            this.transform.SetGameObjectReference(this);
+            UpdateDeformedMesh();
         }
         public GameObject Copy()
         {
-            return new GameObject(mesh, _transform.Copy());
+            GameObject go = new GameObject(mesh, transform.Copy());
+            go.transform.SetGameObjectReference(go);
+            return go;
+        }
+        public void UpdateDeformedMesh()
+        {
+            Vec3[] rotatedVecs = Quaternion.RotateVectors(mesh.vertices, transform.rotation);
+            deformedMesh.vertices = rotatedVecs;
+            var triangles = mesh.triangles;
+            for (int i = 0; i <  triangles.Length; i++)
+            {
+                var tri = triangles[i];
+                int[] indices = tri.indices;
+                Vec3[] apices = [rotatedVecs[indices[0]], rotatedVecs[indices[1]], rotatedVecs[indices[2]]]; 
+                Vec3 newNormal = Triangle.TriangleNormal(apices);
+                deformedMesh.triangles[i].normal = newNormal;
+            }
         }
     }
 }

@@ -9,7 +9,6 @@ using ErisMath;
 using System.Runtime;
 using ErisGameEngineSDL.ErisLibraries;
 using ErisLibraries;
-using System.Numerics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace ErisGameEngineSDL
@@ -24,23 +23,27 @@ namespace ErisGameEngineSDL
         [AllowNull] Pipeline pipeline;
         SDL.SDL_FRect square;
         Vec2 squarePos;
-        uint deltaTime;
+        float deltaTime;
         Vec2int wasdComposite;
         int udComposite;
+        float udRot, lrRot;
+        Vec2 mouseDelta;
+        const float mouseSensitivity = 0.1f;
 
         ushort fpsLimit = 60;
         uint deltaTimeFloor;
 
         bool wireFrameMode = true;
 
+        Vec3 cubeRotAxis;
+        float cubeAngleSpeed;
+
+
         [AllowNull] Transform cameraTransform;
-        static readonly float cameraMoveSpeed = 3f;
+        static readonly float cameraMoveSpeed = 10f;
 
         [AllowNull] List<GameObject> sceneGameObjects;
-        public Game() 
-        {
-
-        }
+        public Game() {}
         public void Start()
         {
             InitWindow();
@@ -58,11 +61,11 @@ namespace ErisGameEngineSDL
             if (realDeltaTime < deltaTimeFloor)
             {
                 SDL.SDL_Delay(deltaTimeFloor - realDeltaTime);
-                deltaTime = (uint)(SDL.SDL_GetTicks64() - frameStartTime);
+                deltaTime = (float)(SDL.SDL_GetTicks64() - frameStartTime)/1000;
             }
             else
             {
-                deltaTime = realDeltaTime;
+                deltaTime = (float)realDeltaTime/1000;
             }
         }
         void CreateObjects()
@@ -72,9 +75,11 @@ namespace ErisGameEngineSDL
             square.h = 40;
             squarePos = Vec2.one * 400;
             sceneGameObjects = new List<GameObject>();
-            GameObject cube = new GameObject(Mesh.Cube(Vec3.one), new Transform());
+            GameObject cube = new GameObject(Mesh.Cube(Vec3.one), 
+                new Transform(Vec3.zero, Quaternion.identity));
             sceneGameObjects.Add(cube);
-            Triangle[] triangles = sceneGameObjects[0].mesh.triangles;
+            cubeRotAxis = new Vec3(0.3f, 1, 0);
+            cubeAngleSpeed  = 30;
         }
         void InitWindow()
         {
@@ -103,9 +108,15 @@ namespace ErisGameEngineSDL
         {
             wasdComposite = Vec2int.zero;
             udComposite = 0;
+            SDL.SDL_SetWindowInputFocus(window);
+            SDL.SDL_CaptureMouse(SDL.SDL_bool.SDL_TRUE);
+            SDL.SDL_SetWindowKeyboardGrab(window, SDL.SDL_bool.SDL_TRUE);
+            SDL.SDL_SetWindowMouseGrab(window, SDL.SDL_bool.SDL_TRUE);
+            SDL.SDL_SetRelativeMouseMode(SDL.SDL_bool.SDL_TRUE);
         }
         void InputEvents()
         {
+            mouseDelta = Vec2.zero;
             while (SDL.SDL_PollEvent(out e) != 0)
             {
                 switch (e.type)
@@ -117,6 +128,10 @@ namespace ErisGameEngineSDL
                         if (e.key.repeat != 0) break;
                         switch (e.key.keysym.sym)
                         {
+                            case SDL.SDL_Keycode.SDLK_ESCAPE:
+                                SDL.SDL_SetWindowMouseGrab(window, SDL.SDL_bool.SDL_FALSE);
+                                SDL.SDL_SetRelativeMouseMode(SDL.SDL_bool.SDL_FALSE);
+                                break;
                             case SDL.SDL_Keycode.SDLK_w:
                                 wasdComposite.y++; break;
                             case SDL.SDL_Keycode.SDLK_a:
@@ -148,19 +163,16 @@ namespace ErisGameEngineSDL
                                 udComposite--; break;
                         }
                         break;
+                    case SDL.SDL_EventType.SDL_MOUSEMOTION:
+                        mouseDelta = new Vec2(e.motion.xrel, e.motion.yrel);
+                        break;
                 }
             }
         }
         void TransformObjects()
         {
-            // Transform camera
-            Vec3 forward = Vec3.forward; //Replace with Transform.forward, .right and .up when you get quaternions done
-            Vec3 right = Vec3.right;
-            Vec3 up = Vec3.up;
-            Vec3 inputVec = new Vec3(wasdComposite.x, udComposite, wasdComposite.y).normalized();
-            Vec3 moveDir = (inputVec.x*right + inputVec.y*up + inputVec.z*forward).normalized();
-            if (moveDir.magnitude() > 0.01f)
-            cameraTransform.position += moveDir * cameraMoveSpeed * deltaTime/1000f;
+            TransformCamera();
+            //TransformSceneObjects();
 
             /* Move a square on screen;
             if (!(wasdComposite.magnitude() < 0.01f))
@@ -172,6 +184,36 @@ namespace ErisGameEngineSDL
             }
             square.x = squarePos.x; square.y = windowSize.y - squarePos.y;
             */
+        }
+        void TransformSceneObjects()
+        {
+            // Rotate Cube
+            
+            foreach (GameObject go in sceneGameObjects)
+            {
+                float angle = cubeAngleSpeed * deltaTime;
+                go.transform.Rotate(Quaternion.AngleAxis(angle, cubeRotAxis));
+            }
+        }
+        void TransformCamera()
+        {
+            Vec3 right = cameraTransform.right;
+            Vec3 up = Vec3.up;
+            Vec3 forward = Vec3.Cross(right, up);
+            Vec3 inputVec = new Vec3(wasdComposite.x, udComposite, wasdComposite.y).normalized();
+            Vec3 moveDir = (inputVec.x * right + inputVec.y * up + inputVec.z * forward).normalized();
+            if (moveDir.magnitude() > 0.01f)
+                cameraTransform.position += moveDir * cameraMoveSpeed * deltaTime;
+
+            if (Math.Abs(mouseDelta.x) > 0.1f || Math.Abs(mouseDelta.y) > 0.1f)
+            {
+                lrRot += mouseDelta.x * mouseSensitivity;
+                lrRot %= 360;
+                udRot += mouseDelta.y * mouseSensitivity;
+                udRot = (float)Math.Clamp(udRot, -89f, 89f);
+                Quaternion camRot = Quaternion.Euler(udRot,lrRot,0);
+                cameraTransform.SetRotation(camRot);
+            }
         }
         void Draw()
         {
