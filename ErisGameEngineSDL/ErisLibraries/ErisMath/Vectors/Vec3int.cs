@@ -32,16 +32,18 @@ namespace ErisMath
             float m = magnitude();
             return new Vec3(_x / m, _y / m, _z / m);
         }
-        public static float Dot(Vec3int a, Vec3int b) => a.x * b.x + a.y * b.y + a.z * b.z;
+        public static float Dot(Vec3int a, Vec3int b) => a._x * b._x + a._y * b._y + a._z * b._z;
         public static Vec3int Cross(Vec3int a, Vec3int b) =>
-            new Vec3int(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+            new Vec3int(a._y * b._z - a._z * b._y, a._z * b._x - a._x * b._z, a._x * b._y - a._y * b._x);
 
-        public static Vec3int operator +(Vec3int a, Vec3int b) => new Vec3int(a.x + b.x, a.y + b.y, a.z + b.z);
-        public static Vec3int operator -(Vec3int a, Vec3int b) => new Vec3int(a.x - b.x, a.y - b.y, a.z - b.z);
-        public static Vec3int operator -(Vec3int a) => new Vec3int(-a.x, -a.y, -a.z);
-        public static Vec3int operator *(Vec3int a, int b) => new Vec3int(a.x * b, a.y * b, a.z * b);
-        public static Vec3int operator *(int b, Vec3int a) => new Vec3int(a.x * b, a.y * b, a.z * b);
-        public static Vec3int operator /(Vec3int a, int b) => new Vec3int(a.x / b, a.y / b, a.z / b);
+        public Vec3 ToFloat() => new Vec3(_x, _y, _z);
+
+        public static Vec3int operator +(Vec3int a, Vec3int b) => new Vec3int(a._x + b._x, a._y + b._y, a._z + b._z);
+        public static Vec3int operator -(Vec3int a, Vec3int b) => new Vec3int(a._x - b._x, a._y - b._y, a._z - b._z);
+        public static Vec3int operator -(Vec3int a) => new Vec3int(-a._x, -a._y, -a._z);
+        public static Vec3int operator *(Vec3int a, int b) => new Vec3int(a._x * b, a._y * b, a._z * b);
+        public static Vec3int operator *(int b, Vec3int a) => new Vec3int(a._x * b, a._y * b, a._z * b);
+        public static Vec3int operator /(Vec3int a, int b) => new Vec3int(a._x / b, a._y / b, a._z / b);
         public override string ToString() => $"Vector 3D: ({_x}, {_y}, {_z})";
     }
 }

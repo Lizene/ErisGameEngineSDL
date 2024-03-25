@@ -33,22 +33,27 @@ namespace ErisMath
             float m = magnitude();
             return new Vec3(_x / m, _y / m, _z / m);
         }
-        public static float Dot(Vec3 a, Vec3 b) => a.x * b.x + a.y * b.y + a.z * b.z;
+        public static float Dot(Vec3 a, Vec3 b) => a._x * b._x + a._y * b._y + a._z * b._z;
         public static Vec3 Cross(Vec3 a, Vec3 b) =>
-            new Vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+            new Vec3(a._y * b._z - a._z * b._y, a._z * b._x - a._x * b._z, a._x * b._y - a._y * b._x);
+
+        public static float Angle(Vec3 a, Vec3 b)
+            => (float)Math.Acos(Dot(a, b) / (a.magnitude() * b.magnitude()));
         public void RotateAroundAxis(float angle, Vec3 axis)
         {
             this = Quaternion.RotateVector(this, Quaternion.AngleAxis(angle, axis));
         }
-        public static Vec3 operator +(Vec3 a, Vec3 b) => new Vec3(a.x + b.x, a.y + b.y, a.z + b.z);
-        public static Vec3 operator -(Vec3 a, Vec3 b) => new Vec3(a.x - b.x, a.y - b.y, a.z - b.z);
-        public static Vec3 operator -(Vec3 a) => new Vec3(-a.x, -a.y, -a.z);
-        public static Vec3 operator *(Vec3 a, int b) => new Vec3(a.x * b, a.y * b, a.z * b);
-        public static Vec3 operator *(int b, Vec3 a) => new Vec3(a.x * b, a.y * b, a.z * b);
-        public static Vec3 operator *(Vec3 a, float b) => new Vec3(a.x * b, a.y * b, a.z * b);
-        public static Vec3 operator *(float b, Vec3 a) => new Vec3(a.x * b, a.y * b, a.z * b);
-        public static Vec3 operator /(Vec3 a, int b) => new Vec3(a.x / b, a.y / b, a.z / b);
-        public static Vec3 operator /(Vec3 a, float b) => new Vec3(a.x / b, a.y / b, a.z / b);
+        public Vec3int ToInt() => new Vec3int((int)_x, (int)_y, (int)_z);
+
+        public static Vec3 operator +(Vec3 a, Vec3 b) => new Vec3(a._x + b._x, a._y + b._y, a._z + b._z);
+        public static Vec3 operator -(Vec3 a, Vec3 b) => new Vec3(a._x - b._x, a._y - b._y, a._z - b._z);
+        public static Vec3 operator -(Vec3 a) => new Vec3(-a._x, -a._y, -a._z);
+        public static Vec3 operator *(Vec3 a, int b) => new Vec3(a._x * b, a._y * b, a._z * b);
+        public static Vec3 operator *(int b, Vec3 a) => new Vec3(a._x * b, a._y * b, a._z * b);
+        public static Vec3 operator *(Vec3 a, float b) => new Vec3(a._x * b, a._y * b, a._z * b);
+        public static Vec3 operator *(float b, Vec3 a) => new Vec3(a._x * b, a._y * b, a._z * b);
+        public static Vec3 operator /(Vec3 a, int b) => new Vec3(a._x / b, a._y / b, a._z / b);
+        public static Vec3 operator /(Vec3 a, float b) => new Vec3(a._x / b, a._y / b, a._z / b);
         public override string ToString() => $"Vector 3D: ({_x}, {_y}, {_z})";
     }
 }

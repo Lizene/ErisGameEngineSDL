@@ -20,9 +20,9 @@ internal struct ColorByte
     public static ColorByte RED = new ColorByte(255, 0, 0);
     public static ColorByte GREEN = new ColorByte(0, 255, 0);
     public static ColorByte BLUE = new ColorByte(0, 0, 255);
-    public ColorByte(byte x, byte y, byte z)
+    public ColorByte(byte r, byte g, byte b)
     {
-        _r = x; _g = y; _b = z;
+        _r = r; _g = g; _b = b;
     }
     static byte ByteUpperClamp(uint a)
     {
@@ -33,6 +33,10 @@ internal struct ColorByte
     {
         if (a < 0) a = 0;
         return (byte)a;
+    }
+    public uint ToUint()
+    {
+        return (uint)((_r << 16) | (_g << 8) | _b);
     }
     public static ColorByte operator +(ColorByte c1, ColorByte c2) 
     {
@@ -53,5 +57,7 @@ internal struct ColorByte
     public static ColorByte operator *(float f, ColorByte c1) => c1 * f;
     public static ColorByte operator /(ColorByte c1, float f) 
         => new ColorByte((byte)(c1._r / f), (byte)(c1._g / f), (byte)(c1._b / f));
+    public static bool operator ==(ColorByte c1, ColorByte c2) => c1.r == c2.r && c1.g == c2.g && c1.b == c2.b;
+    public static bool operator !=(ColorByte c1, ColorByte c2) => !(c1==c2);
     public override string ToString() => $"Color: ({_r}, {_g}, {_b})";
 }

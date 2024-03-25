@@ -80,6 +80,19 @@ namespace ErisMath
             }
             return rotatedVectors;
         }
+        public static Vec3[] RotateVectors(Vec3[] vectors, Quaternion bread, Quaternion invertedBread)
+        {
+            int lenVecs = vectors.Length;
+            Vec3[] rotatedVectors = new Vec3[lenVecs];
+            for (int i = 0; i < lenVecs; i++)
+            {
+                Vec3 v = vectors[i];
+                Quaternion cheese = new Quaternion(0, v.x, v.y, v.z);
+                Quaternion sandwich = bread * cheese * invertedBread;
+                rotatedVectors[i] = new Vec3(sandwich.x, sandwich.y, sandwich.z);
+            }
+            return rotatedVectors;
+        }
         public Vec3 LookDirection() => RotateVector(Vec3.forward, this);
         public static Quaternion operator *(Quaternion r, Quaternion s)
         {

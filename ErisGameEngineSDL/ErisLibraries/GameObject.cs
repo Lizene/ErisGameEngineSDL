@@ -15,6 +15,7 @@ namespace ErisGameEngineSDL.ErisLibraries
         public Mesh mesh;
         public Mesh deformedMesh;
         public Transform transform { get; }
+        public float radius;
 
         public GameObject(Mesh mesh, Transform transform) 
         {
@@ -22,6 +23,7 @@ namespace ErisGameEngineSDL.ErisLibraries
             deformedMesh = new Mesh();
             deformedMesh.vertices = new Vec3[mesh.vertices.Length];
             deformedMesh.triangles = new Triangle[mesh.triangles.Length];
+            SetRadius();
             mesh.triangles.CopyTo(deformedMesh.triangles,0);
             this.transform = transform;
             this.transform.SetGameObjectReference(this);
@@ -32,6 +34,16 @@ namespace ErisGameEngineSDL.ErisLibraries
             GameObject go = new GameObject(mesh, transform.Copy());
             go.transform.SetGameObjectReference(go);
             return go;
+        }
+        void SetRadius()
+        {
+            float r = 0;
+            foreach (Vec3 vertex in mesh.vertices)
+            {
+                float m = vertex.magnitude();
+                if (m > r) r = m;
+            }
+            radius = r;
         }
         public void UpdateDeformedMesh()
         {

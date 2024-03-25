@@ -40,17 +40,22 @@ namespace ErisMath
             if (m < 0.001f) return Vec2.zero;
             return new Vec2(_x / m, _y / m);
         }
-        public static float Dot(Vec2int a, Vec2int b) => a.x * b.x + a.y * b.y;
+        public Vec2 ToFloat() => new Vec2(_x, _y);
+        public static float Dot(Vec2int a, Vec2int b) => a._x * b._x + a._y * b._y;
 
-        public static Vec2int operator +(Vec2int a, Vec2int b) => new Vec2int(a.x+b.x, a.y+b.y);
-        public static Vec2int operator -(Vec2int a, Vec2int b) => new Vec2int(a.x-b.x, a.y-b.y);
-        public static Vec2int operator -(Vec2int a) => new Vec2int(-a.x,-a.y);
-        public static Vec2int operator *(Vec2int a, int b) => new Vec2int(a.x*b, a.y*b);
-        public static Vec2int operator *(int b, Vec2int a) => new Vec2int(a.x*b, a.y*b);
-        public static Vec2 operator *(Vec2int a, float b) => new Vec2(a.x * b, a.y * b);
-        public static Vec2 operator *(float b, Vec2int a) => new Vec2(a.x * b, a.y * b);
-        public static Vec2int operator /(Vec2int a, int b) => new Vec2int(a.x/b, a.y/b);
-        public static Vec2 operator /(Vec2int a, float b) => new Vec2(a.x/b, a.y/b);
+        public static Vec2int operator +(Vec2int a, Vec2int b) => new Vec2int(a._x+b._x, a._y+b._y);
+        public static Vec2 operator +(Vec2int a, Vec2 b) => new Vec2(a._x+b.x, a._y+b.y);
+        public static Vec2 operator +(Vec2 a, Vec2int b) => b+a;
+        public static Vec2int operator -(Vec2int a, Vec2int b) => new Vec2int(a._x-b._x, a._y-b._y);
+        public static Vec2 operator -(Vec2int a, Vec2 b) => new Vec2(a._x-b.x, a._y-b.y);
+        public static Vec2 operator -(Vec2 a, Vec2int b) => new Vec2(a.x-b._x, a.y-b._y);
+        public static Vec2int operator -(Vec2int a) => new Vec2int(-a._x,-a._y);
+        public static Vec2int operator *(Vec2int a, int b) => new Vec2int(a._x*b, a._y*b);
+        public static Vec2int operator *(int b, Vec2int a) => new Vec2int(a._x*b, a._y*b);
+        public static Vec2 operator *(Vec2int a, float b) => new Vec2(a._x * b, a._y * b);
+        public static Vec2 operator *(float b, Vec2int a) => new Vec2(a._x * b, a._y * b);
+        public static Vec2int operator /(Vec2int a, int b) => new Vec2int(a._x/b, a._y/b);
+        public static Vec2 operator /(Vec2int a, float b) => new Vec2(a._x/b, a._y/b);
 
         public override string ToString() => $"Vector 2D (Int): ({_x}, {_y})";
     }

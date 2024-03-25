@@ -12,7 +12,7 @@ namespace ErisGameEngineSDL
             {
                 game.Update();
             }
-            game.Quit();
+            game.Quit(0);
         }
     }
 }

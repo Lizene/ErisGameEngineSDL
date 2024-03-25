@@ -28,7 +28,7 @@ namespace ErisGameEngineSDL.ErisLibraries
         public Transform(Vec3 position, Quaternion rotation, Vec3 scale, Transform? parent) 
         {
             this.position = position;
-            _rotation = rotation;
+            SetRotation(rotation);
             this.scale = scale;
             children = new List<Transform>();
             SetParent(parent);
@@ -36,7 +36,7 @@ namespace ErisGameEngineSDL.ErisLibraries
         public Transform(Vec3 position)
         {
             this.position = position;
-            _rotation = Quaternion.identity;
+            SetRotation(Quaternion.identity);
             scale = Vec3.one;
             children = new List<Transform>();
             parent = null;
@@ -44,7 +44,7 @@ namespace ErisGameEngineSDL.ErisLibraries
         public Transform(Vec3 position, Vec3 scale) 
         {
             this.position = position;
-            _rotation = Quaternion.identity;
+            SetRotation(Quaternion.identity);
             this.scale = scale;
             children = new List<Transform>();
             parent = null;
@@ -53,7 +53,7 @@ namespace ErisGameEngineSDL.ErisLibraries
         public Transform(Vec3 position, Quaternion rotation)
         {
             this.position = position;
-            _rotation = rotation;
+            SetRotation(rotation);
             scale = Vec3.one;
             children = new List<Transform>();
             parent = null;
@@ -61,7 +61,7 @@ namespace ErisGameEngineSDL.ErisLibraries
         public Transform()
         {
             position = Vec3.zero;
-            _rotation = Quaternion.identity;
+            SetRotation(Quaternion.identity);
             scale = Vec3.one;
             children = new List<Transform>();
             parent = null;

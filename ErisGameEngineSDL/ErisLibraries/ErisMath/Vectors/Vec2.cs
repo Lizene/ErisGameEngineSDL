@@ -37,19 +37,20 @@ namespace ErisMath
             float m = magnitude();
             return new Vec2(_x / m, _y / m);
         }
-        public static float Dot(Vec2 a, Vec2 b) => a.x * b.x + a.y * b.y;
+        public Vec2int ToInt() => new Vec2int((int)_x, (int)_y);
+        public static float Dot(Vec2 a, Vec2 b) => a._x * b._x + a._y * b._y;
 
-        public static Vec2 operator +(Vec2 a, Vec2 b) => new Vec2(a.x + b.x, a.y + b.y);
-        public static Vec2 operator -(Vec2 a, Vec2 b) => new Vec2(a.x - b.x, a.y - b.y);
-        public static Vec2 operator -(Vec2 a) => new Vec2(-a.x, -a.y);
+        public static Vec2 operator +(Vec2 a, Vec2 b) => new Vec2(a._x + b._x, a._y + b._y);
+        public static Vec2 operator -(Vec2 a, Vec2 b) => new Vec2(a._x - b._x, a._y - b._y);
+        public static Vec2 operator -(Vec2 a) => new Vec2(-a._x, -a._y);
 
-        public static Vec2 operator *(Vec2 a, int b) => new Vec2(a.x * b, a.y * b);
-        public static Vec2 operator *(int b, Vec2 a) => new Vec2(a.x * b, a.y * b);
-        public static Vec2 operator *(Vec2 a, float b) => new Vec2(a.x * b, a.y * b);
-        public static Vec2 operator *(float b, Vec2 a) => new Vec2(a.x * b, a.y * b);
+        public static Vec2 operator *(Vec2 a, int b) => new Vec2(a._x * b, a._y * b);
+        public static Vec2 operator *(int b, Vec2 a) => new Vec2(a._x * b, a._y * b);
+        public static Vec2 operator *(Vec2 a, float b) => new Vec2(a._x * b, a._y * b);
+        public static Vec2 operator *(float b, Vec2 a) => new Vec2(a._x * b, a._y * b);
 
-        public static Vec2 operator /(Vec2 a, int b) => new Vec2(a.x / b, a.y / b);
-        public static Vec2 operator /(Vec2 a, float b) => new Vec2(a.x / b, a.y / b);
+        public static Vec2 operator /(Vec2 a, int b) => new Vec2(a._x / b, a._y / b);
+        public static Vec2 operator /(Vec2 a, float b) => new Vec2(a._x / b, a._y / b);
         public override string ToString() => $"Vector 2D: ({_x}, {_y})";
     }
 }
