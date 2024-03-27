@@ -5,14 +5,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using SDL2;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ErisLibraries
 {
     internal struct Triangle
     {
         public int[] indices;
-        public Vec3 normal, color;
-        public Triangle(int[] indices, Vec3 normal, Vec3 color) 
+        public Vec3 normal;
+        public ColorByte color;
+        public Triangle(int[] indices, Vec3 normal, ColorByte color) 
         {
             this.indices = indices;
             this.normal = normal;

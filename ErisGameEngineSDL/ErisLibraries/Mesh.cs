@@ -18,7 +18,7 @@ namespace ErisLibraries
             this.vertices = vertices;
             this.triangles = triangles;
         }
-        public static Mesh Cube(Vec3 color)
+        public static Mesh Cube(ColorByte color)
         {
             Vec3[] verts =
             [
@@ -37,7 +37,7 @@ namespace ErisLibraries
             Triangle[] triangles = TrianglesFromTrisInts(verts, tris, color);
             return new Mesh(verts, triangles);
         }
-        static Triangle[] TrianglesFromTrisInts(Vec3[] verts, int[] tris, Vec3 color)
+        static Triangle[] TrianglesFromTrisInts(Vec3[] verts, int[] tris, ColorByte color)
         {
             List<Triangle> triangleObjsList = new List<Triangle>();
             for (int i = 0; i < tris.Length - 2; i += 3)

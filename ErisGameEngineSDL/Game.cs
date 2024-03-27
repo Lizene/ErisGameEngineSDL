@@ -188,7 +188,7 @@ namespace ErisGameEngineSDL
             square.h = 40;
             squarePos = Vec2.one * 400;
             sceneGameObjects = new List<GameObject>();
-            GameObject cube = new GameObject(Mesh.Cube(Vec3.one), 
+            GameObject cube = new GameObject(Mesh.Cube(ColorByte.WHITE), 
                 new Transform(Vec3.zero, Quaternion.identity));
             sceneGameObjects.Add(cube);
             cubeRotAxis = new Vec3(0.3f, 1, 0);
@@ -373,7 +373,7 @@ namespace ErisGameEngineSDL
         void DrawGameObjectsAsSDLLine()
         {
             DrawClear();
-            var renderResult = pipeline.GetGameObjectsLinesPixelPositionsNoFrustumCull(sceneGameObjects.ToArray());
+            var renderResult = pipeline.TriangleLinesSDLDrawLine(sceneGameObjects.ToArray());
             Vec2int[] pixelPositions = renderResult.Item1;
             int[] lines = renderResult.Item2;
             List<SDL.SDL_Point> points = new List<SDL.SDL_Point>();
@@ -415,7 +415,7 @@ namespace ErisGameEngineSDL
             if (drawMode == 0)
             {
                 //DrawGameObjectsAsSDLLine();
-                uint[,] frameBuffer = pipeline.GetFrameBufferTriangleLines(sceneGameObjects.ToArray());
+                uint[,] frameBuffer = pipeline.RenderTriangleLines(sceneGameObjects.ToArray());
                 DrawFrameBuffer(frameBuffer);
             }
             SDL.SDL_RenderPresent(renderer);
