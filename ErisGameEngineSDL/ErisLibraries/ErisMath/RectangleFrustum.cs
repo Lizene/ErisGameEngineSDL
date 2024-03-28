@@ -1,5 +1,4 @@
 ﻿using ErisGameEngineSDL.ErisLibraries;
-using ErisLibraries;
 using ErisMath;
 using System;
 using System.Collections.Generic;
@@ -118,9 +117,9 @@ namespace ErisMath
             }
             else return new Tuple<Vec3, Vec3>(frustumIntersectionPoints[0], frustumIntersectionPoints[1]);
         }
-        public Triangle[] ClipTriangles(Vec3[] vertices, Triangle[] triangles)
+        public ITriangle[] ClipTriangles(Vec3[] vertices, IndexTriangle[] triangles)
         {
-            List<Triangle> clippedTriangles = [];
+            List<ITriangle> clippedTriangles = [];
             bool[] isVerticesInside = new bool[vertices.Length];
             for (int i = 0; i < vertices.Length; i++)
             {
@@ -128,33 +127,49 @@ namespace ErisMath
             }
             for (int i = 0; i < triangles.Length; i++)
             {
-                Triangle triangle = triangles[i];
+                IndexTriangle triangle = triangles[i];
                 List<int> indicesInside = [];
                 List<int> indicesOutside = [];
                 foreach (int index in triangle.indices)
                 {
-                    if (isVerticesInside[index]) indicesInside.Append(index);
-                    else indicesOutside.Append(index);
+                    if (isVerticesInside[index])
+                    {
+                        indicesInside.Add(index);
+                    }
+                    else indicesOutside.Add(index);
                 }
                 int countVerticesInside = indicesInside.Count;
-                if (countVerticesInside == 0) continue;
                 if (countVerticesInside == 3)
                 {
                     clippedTriangles.Add(triangle);
-                    continue;
                 }
-                if (countVerticesInside == 1)
+                else if (countVerticesInside == 1)
                 {
-                    int insideIdx = indicesInside[0];
-                    Vec3 intersectionPoint1 = FrustumIntersectionPoint(vertices[insideIdx], vertices[indicesOutside[0]]);
-                    Vec3 intersectionPoint2 = FrustumIntersectionPoint(vertices[insideIdx], vertices[indicesOutside[1]]);
-                    Triangle clippedTriangle = new Triangle(
-                        [insideIdx, ],
-                        triangle.normal,
-                        triangle.color);
+                    Vec3 insideApex = vertices[indicesInside[0]];
+                    Vec3 intersectionPoint1 = FrustumIntersectionPoint(insideApex, vertices[indicesOutside[0]]);
+                    Vec3 intersectionPoint2 = FrustumIntersectionPoint(insideApex, vertices[indicesOutside[1]]);
+                    clippedTriangles.Add(new ApexTriangle(
+                        [insideApex, intersectionPoint1, intersectionPoint2],
+                        triangle.normal, triangle.color));
+                }
+                else if (countVerticesInside == 2)
+                {
+                    Vec3 outsideApex = vertices[indicesOutside[0]];
+                    Vec3 insideApex1 = vertices[indicesInside[0]];
+                    Vec3 insideApex2 = vertices[indicesInside[1]];
+                    Vec3 intersectionPoint1 = FrustumIntersectionPoint(insideApex1, outsideApex);
+                    Vec3 intersectionPoint2 = FrustumIntersectionPoint(insideApex2, outsideApex);
+                    clippedTriangles.AddRange([
+                        new ApexTriangle(
+                        [intersectionPoint1, insideApex2, insideApex1],
+                        triangle.normal, triangle.color),
+                        new ApexTriangle(
+                        [intersectionPoint2, insideApex2, intersectionPoint1],
+                        triangle.normal, triangle.color),
+                    ]);
                 }
             }
-            return null;
+            return clippedTriangles.ToArray();
         }
     }
 }

@@ -192,6 +192,9 @@ namespace ErisGameEngineSDL
                 new Transform(Vec3.zero, Quaternion.identity));
             sceneGameObjects.Add(cube);
             cubeRotAxis = new Vec3(0.3f, 1, 0);
+
+            GameObject triangleGameObject = new GameObject(Mesh.SingleTriangle(ColorByte.WHITE), new Transform(Vec3.right*5, Quaternion.identity));
+            sceneGameObjects.Add(triangleGameObject);
         }
 
         void Events()

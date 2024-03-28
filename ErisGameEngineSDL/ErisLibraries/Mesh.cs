@@ -12,11 +12,17 @@ namespace ErisLibraries
     internal struct Mesh
     {
         public Vec3[] vertices;
-        public Triangle[] triangles;
-        public Mesh(Vec3[] vertices, Triangle[] triangles) 
+        public IndexTriangle[] triangles;
+        public Mesh(Vec3[] vertices, IndexTriangle[] triangles) 
         {
             this.vertices = vertices;
             this.triangles = triangles;
+        }
+        public static Mesh SingleTriangle(ColorByte color)
+        {
+            Vec3[] verts = [new Vec3(0.6f, -0.6f, 0), new Vec3(-0.6f, -0.6f, 0), new Vec3(0, 1f, 0)];
+            IndexTriangle[] triangles = [new IndexTriangle([0,1,2],verts,color)];
+            return new Mesh(verts, triangles);
         }
         public static Mesh Cube(ColorByte color)
         {
@@ -34,20 +40,19 @@ namespace ErisLibraries
                 0, 4, 5, 0, 5, 1,
                 3, 7, 6, 3, 6, 2
             ];
-            Triangle[] triangles = TrianglesFromTrisInts(verts, tris, color);
+            IndexTriangle[] triangles = TrianglesFromTrisInts(verts, tris, color);
             return new Mesh(verts, triangles);
         }
-        static Triangle[] TrianglesFromTrisInts(Vec3[] verts, int[] tris, ColorByte color)
+        static IndexTriangle[] TrianglesFromTrisInts(Vec3[] verts, int[] tris, ColorByte color)
         {
-            List<Triangle> triangleObjsList = new List<Triangle>();
+            List<IndexTriangle> triangleObjsList = new List<IndexTriangle>();
             for (int i = 0; i < tris.Length - 2; i += 3)
             {
                 int a = tris[i];
                 int b = tris[i + 1];
                 int c = tris[i + 2];
                 Vec3 vecB = verts[b];
-                Vec3 normal = Vec3.Cross(vecB - verts[a], verts[c] - vecB).normalized();
-                triangleObjsList.Add(new Triangle([a, b, c], normal, color));
+                triangleObjsList.Add(new IndexTriangle([a, b, c], verts, color));
             }
             return triangleObjsList.ToArray();
         }

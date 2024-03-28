@@ -20,7 +20,7 @@ namespace ErisMath
         }
         public bool IsPointOnPositiveSide(Vec3 p) => Vec3.Dot(normal, p) + d >= 0;
         public bool IsPointWithRadiusOnNegativeSide(Vec3 p, float r) => Vec3.Dot(normal, p) + d - r < 0;
-        public bool IsPointWithRadiusOnPositiveSide(Vec3 p, float r) => Vec3.Dot(normal, p) + d + r > 0;
+        public bool IsPointWithRadiusOnPositiveSide(Vec3 p, float r) => Vec3.Dot(normal, p) + d + r >= 0;
 
         public bool SegmentIntersects(Vec3 A, Vec3 B)
             => IsPointOnPositiveSide(A) != IsPointOnPositiveSide(B);

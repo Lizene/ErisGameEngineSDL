@@ -1,5 +1,4 @@
 ﻿using ErisGameEngineSDL.ErisLibraries;
-using ErisLibraries;
 using ErisMath;
 using SDL2;
 using System;
@@ -71,8 +70,8 @@ namespace ErisGameEngineSDL
             goVertexPixelPositions = verticesRotated.Select(RelToFramePos).ToArray();
             
             List<int> lines = new List<int>();
-            Triangle[] triangles = go.mesh.triangles;
-            foreach (Triangle triangle in triangles) 
+            IndexTriangle[] triangles = go.mesh.triangles;
+            foreach (IndexTriangle triangle in triangles) 
             {
                 int[] indices = triangle.indices;
                 int[] triangleLines = triangleLineIndices.Select(i => indices[i]).ToArray();
@@ -80,169 +79,142 @@ namespace ErisGameEngineSDL
             }
             return new Tuple<Vec2int[], int[]>(goVertexPixelPositions, lines.ToArray());
         }
-        public uint[,] RenderTriangleLines(GameObject[] gameObjects)
+        public uint[,] RenderTriangleLinesNoClip(GameObject[] gameObjects)
         {
             frameBuffer = new uint[targetResolution.x,targetResolution.y];
             depthBuffer = new float[targetResolution.x,targetResolution.y];
 
-            Quaternion camRotation = camera.transform.rotation;
-            Quaternion camRotationInverse = camRotation.inverted();
+            cameraRotation = camera.transform.rotation;
+            invertedCameraRotation = cameraRotation.inverted();
             foreach (GameObject go in gameObjects)
             {
                 if (go == null) continue;
                 //Transform deformed vertices from object space to camera space
-                Vec3[] vertices = go.deformedMesh.vertices;
-                Vec3 relPos = go.transform.position - cameraTransform.position;
-                Vec3[] verticesRelPos = vertices.Select(v => relPos + v).ToArray();
-                Vec3[] cameraRelativeVertices = Quaternion.RotateVectors(verticesRelPos, camRotationInverse, camRotation);
+                Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
                 //Frustum culling
                 if (!worldSpaceFrustum.IsGameObjectPartlyInside(go)) continue;
-                
-                //Get triangles
-                List<int> linesList = new List<int>();
-                Triangle[] triangles = go.deformedMesh.triangles;
-                foreach (Triangle triangle in triangles)
-                {
-                    int[] indices = triangle.indices;
-                    int[] triangleLines = triangleLineIndices.Select(i => indices[i]).ToArray();
-                    linesList.AddRange(triangleLines);
-                }
-                int[] lines = linesList.ToArray();
 
-                //Render lines to frame buffer
-                for (int i = 0; i < lines.Length - 1; i += 2)
-                {
-                    int index1 = lines[i];
-                    int index2 = lines[i + 1];
-                    Vec3 a = cameraRelativeVertices[index1];
-                    Vec3 b = cameraRelativeVertices[index2];
-
-                    // Frustum clipping
-                    if (!(cameraSpaceFrustum.IsPointInside(a) && cameraSpaceFrustum.IsPointInside(b)))
-                    {
-                        var result2 = cameraSpaceFrustum.ClipSegment(a, b);
-                        if (result2 == null) continue;
-                        a = result2.Item1; b = result2.Item2;
-                    }
-
-                    // Draw line with depth to frame buffer
-                    float zStart = a.z;
-                    float zDiff = b.z - a.z;
-                    Vec2int frameA = RelToFramePos(a);
-                    Vec2int frameA2B = RelToFramePos(b) - frameA;
-                    //int amountOfPoints = Math.Abs(frameA2B.x)+Math.Abs(frameA2B.y);
-                    int amountOfPoints = (int)Math.Ceiling(frameA2B.magnitude()*3);
-                    if (amountOfPoints == 0) amountOfPoints = 1;
-                    for (int j = 0; j <= amountOfPoints; j++)
-                    {
-                        float progress = (float)j / amountOfPoints;
-                        Vec2 frameProgressVector = frameA + frameA2B * progress;
-                        float depth = zStart + zDiff * progress;
-                        Vec2int pixelCoords = new Vec2int((int)(frameProgressVector.x), (int)(frameProgressVector.y));
-                        float depthBufferValue = depthBuffer[pixelCoords.x, pixelCoords.y];
-                        if (depthBufferValue == 0 || depth < depthBufferValue)
-                        {
-                            depthBuffer[pixelCoords.x, pixelCoords.y] = depth;
-                            /*
-                            byte c_r = (byte)(255 * pixelCoords.x / (float)targetResolution.x);
-                            byte c_g = (byte)(255 * pixelCoords.y / (float)targetResolution.y);
-                            */
-                            float fade = Math.Clamp(1f-depth / 10f, 0, 1f);
-                            byte c_r = (byte)(255 * pixelCoords.x * fade/ (float)targetResolution.x);
-                            byte c_g = (byte)(255 * pixelCoords.y * fade/ (float)targetResolution.y);
-                            byte c_b = (byte)(255 * (float)j * fade / amountOfPoints);
-                            ColorByte color = new ColorByte(c_r, c_g, c_b);
-                            frameBuffer[pixelCoords.x, pixelCoords.y] = color.ToUint();
-                        }
-                    }
-                }
+                int[] lines = GetLinesFromIndexTriangles(go.deformedMesh.triangles);
+                RasterizeLinesFrustumSegmentClip(lines, cameraSpaceVertices);
             }
-            /*
-            for (int i = 0; i < targetResolution.y; i++)
-            {
-                string s = "";
-                for (int j = 0; j < targetResolution.x; j++) 
-                {
-                    float depth = depthBuffer[j, i];
-                    if (depth != 0)
-                    s += $"{Math.Round(depth, 2)}, ";
-                }
-                Console.WriteLine(s);
-            }*/
             return frameBuffer;
         }
-        public uint[,] RenderTriangles(GameObject[] gameObjects)
+        public uint[,] RenderTriangleLines(GameObject[] gameObjects)
         {
             frameBuffer = new uint[targetResolution.x, targetResolution.y];
             depthBuffer = new float[targetResolution.x, targetResolution.y];
-            Quaternion camRotation = camera.transform.rotation;
-            Quaternion camRotationInverse = camRotation.inverted();
+            cameraRotation = camera.transform.rotation;
+            invertedCameraRotation = cameraRotation.inverted();
             foreach (GameObject go in gameObjects)
             {
                 if (go == null) continue;
                 //Transform deformed vertices from object space to camera space
-                Vec3[] vertices = go.deformedMesh.vertices;
-                Vec3 relPos = go.transform.position - cameraTransform.position;
-                Vec3[] verticesRelPos = vertices.Select(v => relPos + v).ToArray();
-                Vec3[] cameraRelativeVertices = Quaternion.RotateVectors(verticesRelPos, camRotationInverse, camRotation);
+                Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
                 //Frustum culling
                 if (!worldSpaceFrustum.IsGameObjectPartlyInside(go)) continue;
 
-                //Get triangles & Frustum triangle clipping
-                List<int> linesList = new List<int>();
-                Triangle[] triangles = go.deformedMesh.triangles;
-                Triangle[] clippedTriangles =
-                    cameraSpaceFrustum.IsGameObjectCompletelyInside(go) ? triangles
-                    : cameraSpaceFrustum.ClipTriangles(vertices, triangles);
-                foreach (Triangle triangle in triangles)
+                //If gameobject completely inside frustum, render triangle lines as they are.
+                IndexTriangle[] indexTriangles = go.deformedMesh.triangles;
+                if (worldSpaceFrustum.IsGameObjectCompletelyInside(go))
                 {
-                    int[] indices = triangle.indices;
-                    int[] triangleLines = triangleLineIndices.Select(i => indices[i]).ToArray();
-                    linesList.AddRange(triangleLines);
+                    //Console.WriteLine("No clip");
+                    RasterizeLines(GetLinesFromIndexTriangles(indexTriangles), cameraSpaceVertices);
+                    continue;
                 }
-                int[] lines = linesList.ToArray();
-
-                //Render triangles to frame buffer
-                for (int i = 0; i < lines.Length - 1; i += 2)
+                //Console.WriteLine("Clipped");
+                //Else, clip triangles first
+                ITriangle[] clippedTriangles = cameraSpaceFrustum.ClipTriangles(cameraSpaceVertices, indexTriangles);
+                //Rasterize triangles to frame buffer
+                foreach (ITriangle triangle in clippedTriangles)
                 {
-                    int index1 = lines[i];
-                    int index2 = lines[i + 1];
-                    Vec3 a = cameraRelativeVertices[index1];
-                    Vec3 b = cameraRelativeVertices[index2];
-
-                    // Frustum clipping
-                    if (!(cameraSpaceFrustum.IsPointInside(a) && cameraSpaceFrustum.IsPointInside(b)))
-                    {
-                        var result2 = cameraSpaceFrustum.ClipSegment(a, b);
-                        if (result2 == null) continue;
-                        a = result2.Item1; b = result2.Item2;
-                    }
-
-                    // Draw line with depth to frame buffer
-                    float zStart = a.z;
-                    float zDiff = b.z - a.z;
-                    Vec2int frameA = RelToFramePos(a);
-                    Vec2int frameA2B = RelToFramePos(b) - frameA;
-                    int amountOfPoints = Math.Abs(frameA2B.x) + Math.Abs(frameA2B.y);
-                    if (amountOfPoints == 0) amountOfPoints = 1;
-                    for (int j = 0; j <= amountOfPoints; j++)
-                    {
-                        float progress = ((float)j / amountOfPoints);
-                        Vec2 frameProgressVector = frameA + frameA2B * progress;
-                        float z = zStart + zDiff * progress;
-                        Vec2int pixelCoords = new Vec2int((int)MathF.Truncate(frameProgressVector.x), (int)MathF.Truncate(frameProgressVector.y));
-
-                        ColorByte color = new ColorByte(
-                            (byte)(255 * pixelCoords.x / (float)targetResolution.x),
-                            (byte)(255 * pixelCoords.y / (float)targetResolution.y),
-                            (byte)(255 * z / 10));
-                        frameBuffer[pixelCoords.x, pixelCoords.y] = color.ToUint();
-                    }
+                    Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
+                    Vec3 a = apices[0];
+                    Vec3 b = apices[1];
+                    Vec3 c = apices[2];
+                    RasterizeLine(a, b);
+                    RasterizeLine(b, c);
+                    RasterizeLine(c, a);
                 }
             }
             return frameBuffer;
+        }
+        int[] GetLinesFromIndexTriangles(IndexTriangle[] triangles)
+        {
+            List<int> lines = new List<int>();
+            foreach (IndexTriangle triangle in triangles)
+            {
+                int[] indices = triangle.indices;
+                int[] triangleLines = triangleLineIndices.Select(i => indices[i]).ToArray();
+                lines.AddRange(triangleLines);
+            }
+            return lines.ToArray();
+        }
+        Vec3[] ObjectVerticesToCameraSpace(GameObject go)
+        {
+            Vec3[] vertices = go.deformedMesh.vertices;
+            Vec3 relPos = go.transform.position - cameraTransform.position;
+            Vec3[] verticesRelPos = vertices.Select(v => relPos + v).ToArray();
+            return Quaternion.RotateVectors(verticesRelPos, invertedCameraRotation, cameraRotation);
+        }
+        void RasterizeLinesFrustumSegmentClip(int[] lines, Vec3[] cameraSpaceVertices)
+        {
+            for (int i = 0; i < lines.Length - 1; i += 2)
+            {
+                int index1 = lines[i];
+                int index2 = lines[i + 1];
+                Vec3 a = cameraSpaceVertices[index1];
+                Vec3 b = cameraSpaceVertices[index2];
+
+                // Frustum clipping
+                if (!(cameraSpaceFrustum.IsPointInside(a) && cameraSpaceFrustum.IsPointInside(b)))
+                {
+                    var result2 = cameraSpaceFrustum.ClipSegment(a, b);
+                    if (result2 == null) continue;
+                    a = result2.Item1; b = result2.Item2;
+                }
+                RasterizeLine(a, b);
+            }
+        }
+        void RasterizeLines(int[] lines, Vec3[] cameraSpaceVertices)
+        {
+            for (int i = 0; i < lines.Length - 1; i += 2)
+            {
+                int index1 = lines[i];
+                int index2 = lines[i + 1];
+                Vec3 a = cameraSpaceVertices[index1];
+                Vec3 b = cameraSpaceVertices[index2];
+                RasterizeLine(a, b);
+            }
+        }
+        void RasterizeLine(Vec3 a, Vec3 b)
+        {
+            // Draw line with depth to frame buffer
+            float zStart = a.z;
+            float zDiff = b.z - a.z;
+            Vec2int frameA = RelToFramePos(a);
+            Vec2int frameA2B = RelToFramePos(b) - frameA;
+            int amountOfPoints = (int)Math.Ceiling(frameA2B.magnitude() * 3);
+            if (amountOfPoints == 0) amountOfPoints = 1;
+            for (int j = 0; j <= amountOfPoints; j++)
+            {
+                float progress = (float)j / amountOfPoints;
+                Vec2 frameProgressVector = frameA + frameA2B * progress;
+                float depth = zStart + zDiff * progress;
+                Vec2int pixelCoords = new Vec2int((int)(frameProgressVector.x), (int)(frameProgressVector.y));
+                float depthBufferValue = depthBuffer[pixelCoords.x, pixelCoords.y];
+                if (depthBufferValue == 0 || depth < depthBufferValue)
+                {
+                    depthBuffer[pixelCoords.x, pixelCoords.y] = depth;
+                    float fade = Math.Clamp(1f - depth / 10f, 0, 1f);
+                    byte c_r = (byte)(255 * pixelCoords.x * fade / (float)targetResolution.x);
+                    byte c_g = (byte)(255 * pixelCoords.y * fade / (float)targetResolution.y);
+                    byte c_b = (byte)(255 * (float)j * fade / amountOfPoints);
+                    ColorByte color = new ColorByte(c_r, c_g, c_b);
+                    frameBuffer[pixelCoords.x, pixelCoords.y] = color.ToUint();
+                }
+            }
         }
         Vec2int RelToFramePos(Vec3 v)
         {

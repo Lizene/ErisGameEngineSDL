@@ -22,7 +22,7 @@ namespace ErisGameEngineSDL.ErisLibraries
             this.mesh = mesh;
             deformedMesh = new Mesh();
             deformedMesh.vertices = new Vec3[mesh.vertices.Length];
-            deformedMesh.triangles = new Triangle[mesh.triangles.Length];
+            deformedMesh.triangles = new IndexTriangle[mesh.triangles.Length];
             SetRadius();
             mesh.triangles.CopyTo(deformedMesh.triangles,0);
             this.transform = transform;
@@ -55,7 +55,7 @@ namespace ErisGameEngineSDL.ErisLibraries
                 var tri = triangles[i];
                 int[] indices = tri.indices;
                 Vec3[] apices = [rotatedVecs[indices[0]], rotatedVecs[indices[1]], rotatedVecs[indices[2]]]; 
-                Vec3 newNormal = Triangle.TriangleNormal(apices);
+                Vec3 newNormal = ITriangle.TriangleNormal(apices);
                 deformedMesh.triangles[i].normal = newNormal;
             }
         }
