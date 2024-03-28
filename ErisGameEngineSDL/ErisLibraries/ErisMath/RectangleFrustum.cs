@@ -14,6 +14,7 @@ namespace ErisMath
     internal class RectangleFrustum
     {
         public Plane[] planes;
+        Vec3[][] diagonalLines;
         public Plane near { get { return planes[0]; } }
         public Plane far { get { return planes[1]; } }
         public Plane up { get { return planes[2]; } }
@@ -27,12 +28,42 @@ namespace ErisMath
 
             Plane near = new Plane(Vec3.forward * nearClipPlaneDistance, Vec3.back);
             Plane far = new Plane(Vec3.forward * farClipPlaneDistance, Vec3.forward);
-            Plane up = new Plane(Vec3.zero, Vec3.Cross(viewPortCenter + Vec3.up * halfViewPortSize.y, Vec3.right).normalized());
-            Plane down = new Plane(Vec3.zero, Vec3.Cross(viewPortCenter + Vec3.down * halfViewPortSize.y, Vec3.left).normalized());
-            Plane left = new Plane(Vec3.zero, Vec3.Cross(viewPortCenter + Vec3.left * halfViewPortSize.x, Vec3.up).normalized());
-            Plane right = new Plane(Vec3.zero, Vec3.Cross(viewPortCenter + Vec3.right * halfViewPortSize.x, Vec3.down).normalized());
-
+            Vec3 pointUp = viewPortCenter + Vec3.up * halfViewPortSize.y;
+            Plane up = new Plane(pointUp, Vec3.Cross(pointUp, Vec3.right).normalized());
+            Vec3 pointDown = viewPortCenter + Vec3.down * halfViewPortSize.y;
+            Plane down = new Plane(pointDown, Vec3.Cross(pointDown, Vec3.left).normalized());
+            Vec3 pointLeft = viewPortCenter + Vec3.left * halfViewPortSize.x;
+            Plane left = new Plane(pointLeft, Vec3.Cross(pointLeft, Vec3.up).normalized());
+            Vec3 pointRight = viewPortCenter + Vec3.right * halfViewPortSize.x;
+            Plane right = new Plane(pointRight, Vec3.Cross(pointRight, Vec3.down).normalized());
             planes = [near, far, up, down, left, right];
+
+            float farToViewRatio = farClipPlaneDistance / viewPortDistance;
+            Vec2 halfFarSize = new Vec2(farToViewRatio* halfViewPortSize.x, farToViewRatio*halfViewPortSize.y);
+
+            Vec3[] farSquarePoints = [
+                new Vec3(-halfFarSize.x,halfFarSize.y,farClipPlaneDistance),
+                new Vec3(halfFarSize.x,halfFarSize.y,farClipPlaneDistance),
+                new Vec3(halfFarSize.x,-halfFarSize.y,farClipPlaneDistance),
+                new Vec3(-halfFarSize.x,-halfFarSize.y,farClipPlaneDistance),
+            ];
+
+            float nearToViewRatio = nearClipPlaneDistance / viewPortDistance;
+            Vec2 halfNearSize = new Vec2(nearToViewRatio * halfViewPortSize.x, nearToViewRatio * halfViewPortSize.y);
+
+            Vec3[] nearSquarePoints = [
+                new Vec3(-halfNearSize.x,halfNearSize.y,nearClipPlaneDistance),
+                new Vec3(halfNearSize.x,halfNearSize.y,nearClipPlaneDistance),
+                new Vec3(halfNearSize.x,-halfNearSize.y,nearClipPlaneDistance),
+                new Vec3(-halfNearSize.x,-halfNearSize.y,nearClipPlaneDistance),
+            ];
+
+            diagonalLines = [
+                [nearSquarePoints[0], farSquarePoints[0]],
+                [nearSquarePoints[1], farSquarePoints[1]],
+                [nearSquarePoints[2], farSquarePoints[2]],
+                [nearSquarePoints[3], farSquarePoints[3]],
+            ];
         }
         public bool IsPointInside(Vec3 point)
         {
@@ -94,6 +125,17 @@ namespace ErisMath
             }
             return Vec3.zero;
         }
+        public Tuple<Vec3,int> FrustumIntersectionPointAndPlane(Vec3 A, Vec3 B) //Assumes there is exactly one
+        {
+            for (int i = 0; i < 6; i++)
+            {
+                if (!planes[i].SegmentIntersects(A, B)) continue;
+                Vec3 intersectionPoint = planes[i].LineIntersectionPoint(A, B);
+                if (IsIntersectionPointInsideFrustum(intersectionPoint, i))
+                    return new Tuple<Vec3,int>(intersectionPoint,i);
+            }
+            return new Tuple<Vec3, int>(Vec3.zero,0);
+        }
         public Tuple<Vec3,Vec3>? ClipSegment(Vec3 A, Vec3 B)
         {
             List<Vec3> frustumIntersectionPoints = new List<Vec3>();
@@ -116,6 +158,25 @@ namespace ErisMath
                 else return new Tuple<Vec3, Vec3>(A, frustumIntersectionPoints[0]);
             }
             else return new Tuple<Vec3, Vec3>(frustumIntersectionPoints[0], frustumIntersectionPoints[1]);
+        }
+        Vec3 FrustumCornerIntersectionWithPlane(int[] frustumPlaneIndices, ref Plane p)
+        {
+            if (frustumPlaneIndices.Contains(0) || frustumPlaneIndices.Contains(1)) return Vec3.zero;
+            else
+            {
+                int product = frustumPlaneIndices[0] * frustumPlaneIndices[1];
+                if (product == 6 || product == 20) return Vec3.zero;
+                int lineNum = 0;
+                switch (product)
+                {
+                    case 8: lineNum = 0; break;
+                    case 10: lineNum = 1; break;
+                    case 15: lineNum = 2; break;
+                    case 12: lineNum = 3; break;
+                }
+                Vec3[] line = diagonalLines[lineNum];
+                return p.LineIntersectionPoint(line[0], line[1]);
+            }
         }
         public ITriangle[] ClipTriangles(Vec3[] vertices, IndexTriangle[] triangles)
         {
@@ -146,19 +207,37 @@ namespace ErisMath
                 else if (countVerticesInside == 1)
                 {
                     Vec3 insideApex = vertices[indicesInside[0]];
-                    Vec3 intersectionPoint1 = FrustumIntersectionPoint(insideApex, vertices[indicesOutside[0]]);
-                    Vec3 intersectionPoint2 = FrustumIntersectionPoint(insideApex, vertices[indicesOutside[1]]);
+                    var intersectionResult1 = FrustumIntersectionPointAndPlane(insideApex, vertices[indicesOutside[0]]);
+                    var intersectionResult2 = FrustumIntersectionPointAndPlane(insideApex, vertices[indicesOutside[1]]);
+                    Vec3 intersectionPoint1 = intersectionResult1.Item1;
+                    Vec3 intersectionPoint2 = intersectionResult2.Item1;
                     clippedTriangles.Add(new ApexTriangle(
                         [insideApex, intersectionPoint1, intersectionPoint2],
                         triangle.normal, triangle.color));
+                    // If intersections were with different planes, add corner triangle
+                    int plane1 = intersectionResult1.Item2;
+                    int plane2 = intersectionResult2.Item2;
+                    if (plane1 != plane2)
+                    {
+                        if (plane1 < 2 || plane2 < 2) continue; //Skip this part if either of them is the near or far plane.
+                        Plane trianglePlane = new Plane(insideApex, triangle.normal);
+                        Vec3 cornerPoint = FrustumCornerIntersectionWithPlane([plane1, plane2], ref trianglePlane);
+                        Console.WriteLine(cornerPoint);
+
+                        clippedTriangles.Add(new ApexTriangle(
+                            [intersectionPoint1, cornerPoint, intersectionPoint2],
+                            triangle.normal, triangle.color));
+                    }
                 }
                 else if (countVerticesInside == 2)
                 {
                     Vec3 outsideApex = vertices[indicesOutside[0]];
                     Vec3 insideApex1 = vertices[indicesInside[0]];
                     Vec3 insideApex2 = vertices[indicesInside[1]];
-                    Vec3 intersectionPoint1 = FrustumIntersectionPoint(insideApex1, outsideApex);
-                    Vec3 intersectionPoint2 = FrustumIntersectionPoint(insideApex2, outsideApex);
+                    var intersectionResult1 = FrustumIntersectionPointAndPlane(insideApex1, outsideApex);
+                    var intersectionResult2 = FrustumIntersectionPointAndPlane(insideApex2, outsideApex);
+                    Vec3 intersectionPoint1 = intersectionResult1.Item1;
+                    Vec3 intersectionPoint2 = intersectionResult2.Item1;
                     clippedTriangles.AddRange([
                         new ApexTriangle(
                         [intersectionPoint1, insideApex2, insideApex1],
@@ -167,6 +246,18 @@ namespace ErisMath
                         [intersectionPoint2, insideApex2, intersectionPoint1],
                         triangle.normal, triangle.color),
                     ]);
+                    // If intersections were with different planes, add corner triangle
+                    int plane1 = intersectionResult1.Item2;
+                    int plane2 = intersectionResult2.Item2;
+                    if (plane1 != plane2)
+                    {
+                        if (plane1 < 2 || plane2 < 2) continue; //Skip this part if either of them is the near or far plane.
+                        Plane trianglePlane = new Plane(insideApex1, triangle.normal);
+                        Vec3 cornerPoint = FrustumCornerIntersectionWithPlane([plane1,plane2], ref trianglePlane);
+                        clippedTriangles.Add(new ApexTriangle(
+                            [intersectionPoint1,cornerPoint,intersectionPoint2],
+                            triangle.normal,triangle.color));
+                    }
                 }
             }
             return clippedTriangles.ToArray();
