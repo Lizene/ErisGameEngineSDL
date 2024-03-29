@@ -119,11 +119,47 @@ namespace ErisGameEngineSDL
                 IndexTriangle[] indexTriangles = go.deformedMesh.triangles;
                 if (worldSpaceFrustum.IsGameObjectCompletelyInside(go))
                 {
-                    //Console.WriteLine("No clip");
                     RasterizeLines(GetLinesFromIndexTriangles(indexTriangles), cameraSpaceVertices);
                     continue;
                 }
-                //Console.WriteLine("Clipped");
+                //Else, clip triangles first
+                ITriangle[] clippedTriangles = cameraSpaceFrustum.ClipTriangles(cameraSpaceVertices, indexTriangles);
+                //Rasterize triangles to frame buffer
+                foreach (ITriangle triangle in clippedTriangles)
+                {
+                    Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
+                    Vec3 a = apices[0];
+                    Vec3 b = apices[1];
+                    Vec3 c = apices[2];
+                    RasterizeLine(a, b);
+                    RasterizeLine(b, c);
+                    RasterizeLine(c, a);
+                }
+            }
+            return frameBuffer;
+        }
+        public uint[,] RenderTriangles(GameObject[] gameObjects)
+        {
+            frameBuffer = new uint[targetResolution.x, targetResolution.y];
+            depthBuffer = new float[targetResolution.x, targetResolution.y];
+            cameraRotation = camera.transform.rotation;
+            invertedCameraRotation = cameraRotation.inverted();
+            foreach (GameObject go in gameObjects)
+            {
+                if (go == null) continue;
+                //Transform deformed vertices from object space to camera space
+                Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
+
+                //Frustum culling
+                if (!worldSpaceFrustum.IsGameObjectPartlyInside(go)) continue;
+
+                //If gameobject completely inside frustum, render triangle lines as they are.
+                IndexTriangle[] indexTriangles = go.deformedMesh.triangles;
+                if (worldSpaceFrustum.IsGameObjectCompletelyInside(go))
+                {
+                    RasterizeLines(GetLinesFromIndexTriangles(indexTriangles), cameraSpaceVertices);
+                    continue;
+                }
                 //Else, clip triangles first
                 ITriangle[] clippedTriangles = cameraSpaceFrustum.ClipTriangles(cameraSpaceVertices, indexTriangles);
                 //Rasterize triangles to frame buffer

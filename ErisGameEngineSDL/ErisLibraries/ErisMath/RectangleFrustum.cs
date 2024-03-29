@@ -200,6 +200,7 @@ namespace ErisMath
                     else indicesOutside.Add(index);
                 }
                 int countVerticesInside = indicesInside.Count;
+                if (countVerticesInside == 0) continue; 
                 if (countVerticesInside == 3)
                 {
                     clippedTriangles.Add(triangle);
@@ -207,23 +208,43 @@ namespace ErisMath
                 else if (countVerticesInside == 1)
                 {
                     Vec3 insideApex = vertices[indicesInside[0]];
-                    var intersectionResult1 = FrustumIntersectionPointAndPlane(insideApex, vertices[indicesOutside[0]]);
-                    var intersectionResult2 = FrustumIntersectionPointAndPlane(insideApex, vertices[indicesOutside[1]]);
+                    Vec3 outsideApex1 = vertices[indicesOutside[0]];
+                    Vec3 outsideApex2 = vertices[indicesOutside[1]];
+                    var intersectionResult1 = FrustumIntersectionPointAndPlane(insideApex, outsideApex1);
+                    var intersectionResult2 = FrustumIntersectionPointAndPlane(insideApex, outsideApex2);
                     Vec3 intersectionPoint1 = intersectionResult1.Item1;
                     Vec3 intersectionPoint2 = intersectionResult2.Item1;
                     clippedTriangles.Add(new ApexTriangle(
                         [insideApex, intersectionPoint1, intersectionPoint2],
                         triangle.normal, triangle.color));
-                    // If intersections were with different planes, add corner triangle
-                    int plane1 = intersectionResult1.Item2;
-                    int plane2 = intersectionResult2.Item2;
-                    if (plane1 != plane2)
-                    {
-                        if (plane1 < 2 || plane2 < 2) continue; //Skip this part if either of them is the near or far plane.
-                        Plane trianglePlane = new Plane(insideApex, triangle.normal);
-                        Vec3 cornerPoint = FrustumCornerIntersectionWithPlane([plane1, plane2], ref trianglePlane);
-                        Console.WriteLine(cornerPoint);
 
+                    int planeIdx1 = intersectionResult1.Item2;
+                    int planeIdx2 = intersectionResult2.Item2;
+                    // If intersections were with different planes:
+                    if (planeIdx1 != planeIdx2)
+                    {
+                        if (planeIdx1 < 2 || planeIdx2 < 2) continue; //Skip this part if either of them is the near or far plane.
+                        // If line connecting outside apices intersects with frustum, cut the shape to that line
+                        Vec3 outsideLineIntersection1 = planes[planeIdx1].LineIntersectionPoint(outsideApex1, outsideApex2);
+                        if (IsIntersectionPointInsideFrustum(outsideLineIntersection1,planeIdx1)) 
+                        {
+                            Vec3 outsideLineIntersection2 = planes[planeIdx2].LineIntersectionPoint(outsideApex1, outsideApex2);
+                            if (IsIntersectionPointInsideFrustum(outsideLineIntersection2, planeIdx2)) //Floating point error fix
+                            {
+                                clippedTriangles.AddRange([
+                                new ApexTriangle(
+                                    [outsideLineIntersection1, outsideLineIntersection2, intersectionPoint1],
+                                    triangle.normal, triangle.color),
+                                    new ApexTriangle(
+                                    [intersectionPoint1, outsideLineIntersection2, intersectionPoint2],
+                                    triangle.normal, triangle.color),
+                                ]);
+                                continue;
+                            }
+                        }
+                        // Else, add frustum corner triangle
+                        Plane trianglePlane = new Plane(insideApex, triangle.normal);
+                        Vec3 cornerPoint = FrustumCornerIntersectionWithPlane([planeIdx1, planeIdx2], ref trianglePlane);
                         clippedTriangles.Add(new ApexTriangle(
                             [intersectionPoint1, cornerPoint, intersectionPoint2],
                             triangle.normal, triangle.color));

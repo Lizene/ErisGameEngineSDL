@@ -74,7 +74,7 @@ namespace ErisGameEngineSDL
         Vec2int windowFit, fitStart;
         Vec2 fitResRatio;
         int pixelXstart, pixelYstart;
-        byte drawMode = 0;
+        byte drawMode = 2;
         private int resXtimesY;
 
         public Game() {}
@@ -226,6 +226,10 @@ namespace ErisGameEngineSDL
                                 udComposite--; break;
                             case SDL.SDL_Keycode.SDLK_SPACE:
                                 udComposite++; break;
+                            case SDL.SDL_Keycode.SDLK_1:
+                                drawMode = 1; break;
+                            case SDL.SDL_Keycode.SDLK_2:
+                                drawMode = 2; break;
                         }
                         break;
                     case SDL.SDL_EventType.SDL_KEYUP:
@@ -415,12 +419,24 @@ namespace ErisGameEngineSDL
         void Draw()
         {
             SDL.SDL_RenderClear(renderer);
-            if (drawMode == 0)
+            uint[,] frameBuffer;
+            GameObject[] sceneGameObjectsArray = sceneGameObjects.ToArray(); 
+            switch (drawMode)
             {
-                //DrawGameObjectsAsSDLLine();
-                uint[,] frameBuffer = pipeline.RenderTriangleLines(sceneGameObjects.ToArray());
-                DrawFrameBuffer(frameBuffer);
+                case 1:
+                    frameBuffer = pipeline.RenderTriangleLinesNoClip(sceneGameObjectsArray);
+                    break;
+                case 2:
+                    frameBuffer = pipeline.RenderTriangleLines(sceneGameObjectsArray);
+                    break;
+                case 3:
+                    frameBuffer = pipeline.RenderTriangles(sceneGameObjectsArray);
+                    break;
+                default:
+                    frameBuffer = new uint[0, 0];
+                    break;
             }
+            DrawFrameBuffer(frameBuffer);
             SDL.SDL_RenderPresent(renderer);
         }
 
