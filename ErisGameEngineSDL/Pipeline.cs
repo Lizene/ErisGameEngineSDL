@@ -16,7 +16,7 @@ namespace ErisGameEngineSDL
         float viewPortDistance;
         uint[,] frameBuffer;
         float[,] depthBuffer;
-        static readonly int[] triangleLineIndices = [0, 1, 1, 2, 2, 0];
+        static readonly ushort[] triangleLineIndices = [0, 1, 1, 2, 2, 0];
 
         public Vec2int targetResolution;
         Camera camera;
@@ -39,84 +39,45 @@ namespace ErisGameEngineSDL
             worldSpaceFrustum = camera.worldSpaceFrustum;
             cameraSpaceFrustum = camera.cameraSpaceFrustum;
         }
-        public Tuple<Vec2int[],int[]> TriangleLinesSDLDrawLine(GameObject[] gameObjects)
-        {
-            invertedCameraRotation = cameraTransform.rotation.inverted();
-            List<Vec2int> pixelPositions = new List<Vec2int>();
-            List<int> lines = new List<int>();
-            foreach (GameObject go in gameObjects)
-            {
-                if (go == null) continue;
-                Tuple<Vec2int[], int[]> result = new Tuple<Vec2int[], int[]>(new Vec2int[1], new int[1]);
-                int performanceTest = 1;
-                for (int i = 0; i < performanceTest; i++)
-                {
-                    result = GetLinesPixelPositionsNoFrustumCull(go);
-                }
-                int count = pixelPositions.Count;
-                lines.AddRange(result.Item2.Select(x => x+count));
-                pixelPositions.AddRange(result.Item1);
-            }
-            return new Tuple<Vec2int[], int[]>(pixelPositions.ToArray(), lines.ToArray());
-        }
-        Tuple<Vec2int[], int[]> GetLinesPixelPositionsNoFrustumCull(GameObject go)
-        {
-            Vec3[] vertices = go.deformedMesh.vertices;
-            Vec3 goPos = go.transform.position;
-            Vec2int[] goVertexPixelPositions;
-            Vec3 relPos = cameraTransform.position - goPos;
-            Vec3[] verticesRelPos = vertices.Select(v => relPos + v).ToArray();
-            Vec3[] verticesRotated = Quaternion.RotateVectors(verticesRelPos, invertedCameraRotation, camera.transform.rotation);
-            goVertexPixelPositions = verticesRotated.Select(RelToFramePos).ToArray();
-            
-            List<int> lines = new List<int>();
-            IndexTriangle[] triangles = go.mesh.triangles;
-            foreach (IndexTriangle triangle in triangles) 
-            {
-                int[] indices = triangle.indices;
-                int[] triangleLines = triangleLineIndices.Select(i => indices[i]).ToArray();
-                lines.AddRange(triangleLines);
-            }
-            return new Tuple<Vec2int[], int[]>(goVertexPixelPositions, lines.ToArray());
-        }
-        public uint[,] RenderTriangleLinesNoClip(GameObject[] gameObjects)
+        
+        public uint[,] RenderTriangleLinesNoClip(Shaped3DObject[] gameObjects)
         {
             frameBuffer = new uint[targetResolution.x,targetResolution.y];
             depthBuffer = new float[targetResolution.x,targetResolution.y];
 
             cameraRotation = camera.transform.rotation;
             invertedCameraRotation = cameraRotation.inverted();
-            foreach (GameObject go in gameObjects)
+            foreach (Shaped3DObject go in gameObjects)
             {
                 if (go == null) continue;
-                //Transform deformed vertices from object space to camera space
+                //transformed vertices from object space to camera space
                 Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
                 //Frustum culling
                 if (!worldSpaceFrustum.IsGameObjectPartlyInside(go)) continue;
 
-                int[] lines = GetLinesFromIndexTriangles(go.deformedMesh.triangles);
-                RasterizeLinesFrustumSegmentClip(lines, cameraSpaceVertices);
+                int[] lines = GetLinesFromIndexTriangles(go.transformedMesh.triangles);
+                FrustumClipAndRasterizeLines(lines, cameraSpaceVertices);
             }
             return frameBuffer;
         }
-        public uint[,] RenderTriangleLines(GameObject[] gameObjects)
+        public uint[,] RenderTriangleLines(Shaped3DObject[] gameObjects)
         {
             frameBuffer = new uint[targetResolution.x, targetResolution.y];
             depthBuffer = new float[targetResolution.x, targetResolution.y];
             cameraRotation = camera.transform.rotation;
             invertedCameraRotation = cameraRotation.inverted();
-            foreach (GameObject go in gameObjects)
+            foreach (Shaped3DObject go in gameObjects)
             {
                 if (go == null) continue;
-                //Transform deformed vertices from object space to camera space
+                //transformed vertices from object space to camera space
                 Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
                 //Frustum culling
                 if (!worldSpaceFrustum.IsGameObjectPartlyInside(go)) continue;
 
                 //If gameobject completely inside frustum, render triangle lines as they are.
-                IndexTriangle[] indexTriangles = go.deformedMesh.triangles;
+                IndexTriangle[] indexTriangles = go.transformedMesh.triangles;
                 if (worldSpaceFrustum.IsGameObjectCompletelyInside(go))
                 {
                     RasterizeLines(GetLinesFromIndexTriangles(indexTriangles), cameraSpaceVertices);
@@ -124,6 +85,7 @@ namespace ErisGameEngineSDL
                 }
                 //Else, clip triangles first
                 ITriangle[] clippedTriangles = cameraSpaceFrustum.ClipTriangles(cameraSpaceVertices, indexTriangles);
+
                 //Rasterize triangles to frame buffer
                 foreach (ITriangle triangle in clippedTriangles)
                 {
@@ -138,23 +100,23 @@ namespace ErisGameEngineSDL
             }
             return frameBuffer;
         }
-        public uint[,] RenderTriangles(GameObject[] gameObjects)
+        public uint[,] RenderTriangles(Shaped3DObject[] gameObjects)
         {
             frameBuffer = new uint[targetResolution.x, targetResolution.y];
             depthBuffer = new float[targetResolution.x, targetResolution.y];
             cameraRotation = camera.transform.rotation;
             invertedCameraRotation = cameraRotation.inverted();
-            foreach (GameObject go in gameObjects)
+            foreach (Shaped3DObject go in gameObjects)
             {
                 if (go == null) continue;
-                //Transform deformed vertices from object space to camera space
+                //transformed vertices from object space to camera space
                 Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
                 //Frustum culling
                 if (!worldSpaceFrustum.IsGameObjectPartlyInside(go)) continue;
 
                 //If gameobject completely inside frustum, render triangle lines as they are.
-                IndexTriangle[] indexTriangles = go.deformedMesh.triangles;
+                IndexTriangle[] indexTriangles = go.transformedMesh.triangles;
                 if (worldSpaceFrustum.IsGameObjectCompletelyInside(go))
                 {
                     RasterizeLines(GetLinesFromIndexTriangles(indexTriangles), cameraSpaceVertices);
@@ -166,16 +128,12 @@ namespace ErisGameEngineSDL
                 foreach (ITriangle triangle in clippedTriangles)
                 {
                     Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
-                    Vec3 a = apices[0];
-                    Vec3 b = apices[1];
-                    Vec3 c = apices[2];
-                    RasterizeLine(a, b);
-                    RasterizeLine(b, c);
-                    RasterizeLine(c, a);
+                    RasterizeTriangle(apices);
                 }
             }
             return frameBuffer;
         }
+        
         int[] GetLinesFromIndexTriangles(IndexTriangle[] triangles)
         {
             List<int> lines = new List<int>();
@@ -187,14 +145,27 @@ namespace ErisGameEngineSDL
             }
             return lines.ToArray();
         }
-        Vec3[] ObjectVerticesToCameraSpace(GameObject go)
+        Vec3[] ObjectVerticesToCameraSpace(Shaped3DObject go)
         {
-            Vec3[] vertices = go.deformedMesh.vertices;
+            Vec3[] vertices = go.transformedMesh.vertices;
             Vec3 relPos = go.transform.position - cameraTransform.position;
             Vec3[] verticesRelPos = vertices.Select(v => relPos + v).ToArray();
             return Quaternion.RotateVectors(verticesRelPos, invertedCameraRotation, cameraRotation);
         }
-        void RasterizeLinesFrustumSegmentClip(int[] lines, Vec3[] cameraSpaceVertices)
+        void RasterizeTriangle(Vec3[] apices)
+        {
+            Vec3 a = apices[0];
+            Vec3 b = apices[1];
+            Vec3 c = apices[2];
+
+
+            /*
+            RasterizeLine(a, b);
+            RasterizeLine(b, c);
+            RasterizeLine(c, a);
+            */
+        }
+        void FrustumClipAndRasterizeLines(int[] lines, Vec3[] cameraSpaceVertices)
         {
             for (int i = 0; i < lines.Length - 1; i += 2)
             {
@@ -244,6 +215,7 @@ namespace ErisGameEngineSDL
                 {
                     depthBuffer[pixelCoords.x, pixelCoords.y] = depth;
                     float fade = Math.Clamp(1f - depth / 10f, 0, 1f);
+                    fade = 1; //Temp 
                     byte c_r = (byte)(255 * pixelCoords.x * fade / (float)targetResolution.x);
                     byte c_g = (byte)(255 * pixelCoords.y * fade / (float)targetResolution.y);
                     byte c_b = (byte)(255 * (float)j * fade / amountOfPoints);
@@ -261,27 +233,47 @@ namespace ErisGameEngineSDL
             if (framePos.y == targetResolution.y) framePos.y--;
             return framePos;
         }
-        Tuple<int,bool[]> GetEachVertexInsideFrustum(GameObject go) // Int state is inside, bool array to see if vertex is inside
+        
+        public Tuple<Vec2int[],int[]> TriangleLinesSDLDrawLine(Shaped3DObject[] gameObjects)
         {
-            bool partiallyInside = false;
-            bool completelyInside = true;
-            Vec3[] vertices = go.deformedMesh.vertices;
-            int lenVerts = vertices.Length;
-            bool[] verticesIsInside = new bool[lenVerts];
-            Vec3 goPos = go.transform.position;
-            for(int i = 0; i < lenVerts; i++)
+            invertedCameraRotation = cameraTransform.rotation.inverted();
+            List<Vec2int> pixelPositions = new List<Vec2int>();
+            List<int> lines = new List<int>();
+            foreach (Shaped3DObject go in gameObjects)
             {
-                Vec3 vertex = vertices[i];
-                bool vertexIsInside = worldSpaceFrustum.IsPointInside(goPos+vertex);
-                verticesIsInside[i] = vertexIsInside;
-                if (vertexIsInside) partiallyInside = true;
-                else completelyInside = false;
+                if (go == null) continue;
+                Tuple<Vec2int[], int[]> result = new Tuple<Vec2int[], int[]>(new Vec2int[1], new int[1]);
+                int performanceTest = 1;
+                for (int i = 0; i < performanceTest; i++)
+                {
+                    result = GetLinesPixelPositionsNoFrustumCull(go);
+                }
+                int count = pixelPositions.Count;
+                lines.AddRange(result.Item2.Select(x => x+count));
+                pixelPositions.AddRange(result.Item1);
             }
-            int isInsideInt = -1;
-            if (!partiallyInside) isInsideInt = 0;
-            else if (!completelyInside) isInsideInt = 2;
-            else isInsideInt = 1;
-            return new Tuple<int, bool[]>(isInsideInt, verticesIsInside);
+            return new Tuple<Vec2int[], int[]>(pixelPositions.ToArray(), lines.ToArray());
         }
+        Tuple<Vec2int[], int[]> GetLinesPixelPositionsNoFrustumCull(Shaped3DObject go)
+        {
+            Vec3[] vertices = go.transformedMesh.vertices;
+            Vec3 goPos = go.transform.position;
+            Vec2int[] goVertexPixelPositions;
+            Vec3 relPos = cameraTransform.position - goPos;
+            Vec3[] verticesRelPos = vertices.Select(v => relPos + v).ToArray();
+            Vec3[] verticesRotated = Quaternion.RotateVectors(verticesRelPos, invertedCameraRotation, camera.transform.rotation);
+            goVertexPixelPositions = verticesRotated.Select(RelToFramePos).ToArray();
+            
+            List<int> lines = new List<int>();
+            IndexTriangle[] triangles = go.mesh.triangles;
+            foreach (IndexTriangle triangle in triangles) 
+            {
+                int[] indices = triangle.indices;
+                int[] triangleLines = triangleLineIndices.Select(i => indices[i]).ToArray();
+                lines.AddRange(triangleLines);
+            }
+            return new Tuple<Vec2int[], int[]>(goVertexPixelPositions, lines.ToArray());
+        }
+        
     }
 }

@@ -74,7 +74,7 @@ namespace ErisMath
             }
             return isInside;
         }
-        public bool IsGameObjectPartlyInside(GameObject go)
+        public bool IsGameObjectPartlyInside(Shaped3DObject go)
         {
             bool isInside = true;
             foreach (Plane plane in planes)
@@ -84,7 +84,7 @@ namespace ErisMath
             }
             return isInside;
         }
-        public bool IsGameObjectCompletelyInside(GameObject go)
+        public bool IsGameObjectCompletelyInside(Shaped3DObject go)
         {
             bool isInside = true;
             foreach (Plane plane in planes)

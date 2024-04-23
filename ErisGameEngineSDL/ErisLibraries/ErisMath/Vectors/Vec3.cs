@@ -52,6 +52,7 @@ namespace ErisMath
         public static Vec3 operator *(int b, Vec3 a) => new Vec3(a._x * b, a._y * b, a._z * b);
         public static Vec3 operator *(Vec3 a, float b) => new Vec3(a._x * b, a._y * b, a._z * b);
         public static Vec3 operator *(float b, Vec3 a) => new Vec3(a._x * b, a._y * b, a._z * b);
+        public static Vec3 operator *(Vec3 a, Vec3 b) => new Vec3(a._x*b._x, a._y*b._y, a._z*b._z);
         public static Vec3 operator /(Vec3 a, int b) => new Vec3(a._x / b, a._y / b, a._z / b);
         public static Vec3 operator /(Vec3 a, float b) => new Vec3(a._x / b, a._y / b, a._z / b);
         public override string ToString() => $"Vector 3D: ({_x}, {_y}, {_z})";

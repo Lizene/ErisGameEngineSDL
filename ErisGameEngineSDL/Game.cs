@@ -39,10 +39,6 @@ namespace ErisGameEngineSDL
         float resolutionRatio;
         [AllowNull] Pipeline pipeline;
 
-        //Moving square
-        SDL.SDL_FRect square;
-        Vec2 squarePos;
-        float deltaTime;
 
         //Input
         bool inputEnabled = true;
@@ -55,12 +51,15 @@ namespace ErisGameEngineSDL
         //FPS limit
         ushort fpsLimit = 60000;
         uint deltaTimeFloor;
+        float deltaTime;
         uint secondCounter = 0;
         uint frameCounter = 0;
 
-        //Cube rotation
-        Vec3 cubeRotAxis;
-        const float cubeAngleSpeed = 0;
+        //Cube transformation
+        Vec3 cubeRotAxis = new Vec3(0.3f, 1, 0);
+        const float cubeAngleSpeed = 50, morphSpeed = 0.5f;
+        float morphPhase = 0f;
+
 
         //Camera
         [AllowNull] Camera camera;
@@ -68,7 +67,7 @@ namespace ErisGameEngineSDL
         static readonly float cameraMoveSpeed = 10f;
 
         //Scene
-        [AllowNull] List<GameObject> sceneGameObjects;
+        [AllowNull] List<Shaped3DObject> sceneGameObjects;
 
         //Drawing
         Vec2int windowFit, fitStart;
@@ -87,11 +86,13 @@ namespace ErisGameEngineSDL
         }
         public void Update()
         {
-            ulong frameStartTime = SDL.SDL_GetTicks64();
+            ulong frameStartTime = SDL.SDL_GetTicks64(); //Get frame start time
             Events();
             TransformObjects();
             Draw();
             uint realDeltaTime = (uint)(SDL.SDL_GetTicks64() - frameStartTime);
+            //Calculate deltaTime
+            //If exceeds fpslimit, wait until fpslimit is met
             if (realDeltaTime < deltaTimeFloor)
             {
                 SDL.SDL_Delay(deltaTimeFloor - realDeltaTime);
@@ -101,8 +102,8 @@ namespace ErisGameEngineSDL
             {
                 deltaTime = (float)realDeltaTime/1000;
             }
+            //Frame counter
             frameCounter++;
-            //Console.WriteLine($"Delta time: {realDeltaTime}");
             secondCounter += (uint)(SDL.SDL_GetTicks64() - frameStartTime);
             if (secondCounter > 1000)
             {
@@ -183,18 +184,48 @@ namespace ErisGameEngineSDL
         }
         void CreateObjects()
         {
-            square = new SDL.SDL_FRect();
-            square.w = 40;
-            square.h = 40;
-            squarePos = Vec2.one * 400;
-            sceneGameObjects = new List<GameObject>();
-            GameObject cube = new GameObject(Mesh.Cube(ColorByte.WHITE), 
-                new Transform(Vec3.zero, Quaternion.identity));
-            sceneGameObjects.Add(cube);
-            cubeRotAxis = new Vec3(0.3f, 1, 0);
+            Vec3 pillarScale = new Vec3(0.7f, 5, 0.7f);
+            sceneGameObjects =
+            [
+                //Make floor
+                Shaped3DObject.CreateCube(new Vec3(0,-2,0), new Vec3(11,1,11)),
 
-            GameObject triangleGameObject = new GameObject(Mesh.SingleTriangle(ColorByte.WHITE), new Transform(Vec3.right*5, Quaternion.identity));
-            sceneGameObjects.Add(triangleGameObject);
+                //Make cube
+                Shaped3DObject.CreateCube(new Vec3(-4,0,4), Vec3.one),
+
+                //Make rotating cube
+                Shaped3DObject.CreateCube(new Vec3(4,1,4), Vec3.one),
+
+                //Make size-morphing cube
+                Shaped3DObject.CreateCube(new Vec3(4,1,-4), Vec3.one),
+
+                //Make rotating and size-morphing cube
+                Shaped3DObject.CreateCube(new Vec3(-4,1,-4), Vec3.one),
+
+                //Make singular triangle object
+                new Shaped3DObject(
+                    Mesh.SingleTriangle(ColorByte.WHITE),
+                    new Transform()),
+
+                // Make pillars
+                Shaped3DObject.CreateCube(new Vec3(10,4f,10), pillarScale),
+                Shaped3DObject.CreateCube(new Vec3(-10,4f,10), pillarScale),
+                Shaped3DObject.CreateCube(new Vec3(10,4f,-10), pillarScale),
+                Shaped3DObject.CreateCube(new Vec3(-10,4f,-10), pillarScale),
+                Shaped3DObject.CreateCube(new Vec3(7,4f,10), pillarScale),
+                Shaped3DObject.CreateCube(new Vec3(-7,4f,10), pillarScale),
+
+                // Make windmill
+                Shaped3DObject.CreateCube(new Vec3(0,16f,-24), new Vec3(1.3f, 8, 0.3f)),
+                Shaped3DObject.CreateCube(new Vec3(0,16f,-24), Quaternion.Euler(0,0,90), new Vec3(1.3f, 8, 0.3f)),
+                Shaped3DObject.CreateCube(new Vec3(0,9f,-26.5f), new Vec3(2, 10, 2))
+
+                //Make 
+            ];
+            sceneGameObjects[2].isRotating = true;
+            sceneGameObjects[3].isMorphing = true;
+            sceneGameObjects[4].isRotating = true;
+            sceneGameObjects[4].isMorphing = true;
         }
 
         void Events()
@@ -315,31 +346,34 @@ namespace ErisGameEngineSDL
             pixelYstart = windowSize.y - fitStart.y;
             fitResRatio = new Vec2(windowFit.x / (float)targetResolution.x, windowFit.y / (float)targetResolution.y);
         }
-
         void TransformObjects()
         {
             TransformCamera();
             TransformSceneObjects();
-
-            /* Move a square on screen;
-            if (!(wasdComposite.magnitude() < 0.01f))
-            {
-                var newPos = squarePos + wasdComposite.normalized() * 0.2f * deltaTime;
-                if (newPos.x >= 0f && newPos.x < windowSize.x - square.w
-                    && newPos.y >= square.h && newPos.y < windowSize.y)
-                    squarePos = newPos;
-            }
-            square.x = squarePos.x; square.y = windowSize.y - squarePos.y;
-            */
         }
         void TransformSceneObjects()
         {
-            // Rotate Cube
-            
-            foreach (GameObject go in sceneGameObjects)
+            // Rotate Cubes
+            float angle = cubeAngleSpeed * deltaTime;
+            foreach (Shaped3DObject go in sceneGameObjects)
             {
-                float angle = cubeAngleSpeed * deltaTime;
+                if (!go.isRotating) continue;
                 go.transform.Rotate(Quaternion.AngleAxis(angle, cubeRotAxis));
+            }
+            // Rotate windmill
+            sceneGameObjects[12].transform.Rotate(Quaternion.AngleAxis(angle, Vec3.forward));
+            sceneGameObjects[13].transform.Rotate(Quaternion.AngleAxis(angle, Vec3.forward));
+
+            // Morph Cubes
+            morphPhase += morphSpeed * deltaTime;
+            foreach (Shaped3DObject so in sceneGameObjects)
+            {
+                if (!so.isMorphing) continue;
+                Vec3 newScale = (new Vec3((float)Math.Sin(morphPhase),
+                    (float)Math.Sin(morphPhase + Constants.rad120),
+                    (float)Math.Sin(morphPhase + 2*Constants.rad120))
+                    );
+                so.transform.SetScale(newScale);
             }
         }
         void TransformCamera()
@@ -363,10 +397,8 @@ namespace ErisGameEngineSDL
                 camera.SetRotation(camRot);
             }
         }
-
         void DrawClear()
         {
-
             SDL.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 1);
             SDL.SDL_RenderClear(renderer);
             /*
@@ -415,12 +447,11 @@ namespace ErisGameEngineSDL
             SDL.SDL_UnlockTexture(renderTexture);
             SDL.SDL_RenderCopy(renderer, renderTexture, IntPtr.Zero, IntPtr.Zero);
         }
-
         void Draw()
         {
             SDL.SDL_RenderClear(renderer);
             uint[,] frameBuffer;
-            GameObject[] sceneGameObjectsArray = sceneGameObjects.ToArray(); 
+            Shaped3DObject[] sceneGameObjectsArray = sceneGameObjects.ToArray(); 
             switch (drawMode)
             {
                 case 1:
