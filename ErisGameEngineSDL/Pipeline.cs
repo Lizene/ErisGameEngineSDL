@@ -124,7 +124,7 @@ namespace ErisGameEngineSDL
                     //Rasterize triangles to frame buffer
                     foreach (IndexTriangle triangle in indexTriangles)
                     {
-                        if (Vec3.Dot(camFacingDir, triangle.normal) > 0) continue; // Only render front side of objects
+                        //if (Vec3.Dot(camFacingDir, triangle.normal) < 0) continue; // Only render front side of objects
                         Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
                         RasterizeTriangle(apices, triangle.color);
                     }
@@ -136,7 +136,7 @@ namespace ErisGameEngineSDL
                 foreach (ITriangle triangle in clippedTriangles)
                 {
                     Vec3 normal = triangle.GetNormal();
-                    if (Vec3.Dot(camFacingDir, normal) > 0) continue; // Only render front side of objects
+                    //if (Vec3.Dot(camFacingDir, normal) < 0) continue; // Only render front side of objects
                     Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
                     ColorByte color = triangle.GetColor();
                     RasterizeTriangle(apices, color);
@@ -200,27 +200,27 @@ namespace ErisGameEngineSDL
 
             void FlatTop(Vec2int topleft, Vec2int topright, Vec2int bottom)
             {
-                /*
-                int xDiffL = bottom.x - topleft.x;
-                int xDiffR = bottom.x - topright.x;
-                int endY = topleft.y;
+                
+                int xDiffL = topleft.x - bottom.x;
+                int xDiffR = topright.x - bottom.x ;
                 int startY = bottom.y;
+                int endY = topleft.y;
                 int yDiff = endY - startY;
                 if (yDiff <= 0) Debug.Fail("ÖOfej");
                 int startX, endX;
-                for (int j = yDiff; j >= 0; j--)
+                for (int j = 0; j <= yDiff; j++)
                 {
-                    int currentY = startY - j;
-                    if (currentY == targetResolution.y) break;
+                    int currentY = startY + j;
+                    if (currentY == targetResolution.y) continue;
                     float progress = j / (float)yDiff;
-                    startX = top.x + (int)(progress * xDiffL);
-                    endX = top.x + (int)(progress * xDiffR);
+                    startX = bottom.x + (int)(progress * xDiffL);
+                    endX = bottom.x + (int)(progress * xDiffR);
                     for (int i = startX; i < endX; i++)
                     {
                         if (i == targetResolution.x) continue;
                         frameBuffer[i, currentY] = posColor.ToUint();
                     }
-                }*/
+                }
             }
             void FlatBottom(Vec2int top, Vec2int bottomleft, Vec2int bottomright)
             {
@@ -236,7 +236,7 @@ namespace ErisGameEngineSDL
                 for (int j = 0; j <= yDiff; j++)
                 {
                     int currentY = startY - j;
-                    if (currentY == targetResolution.y) break;
+                    if (currentY == targetResolution.y) continue;
                     float progress = j / (float)yDiff;
                     startX = top.x+(int)(progress * xDiffL);
                     endX = top.x+(int)(progress * xDiffR);
@@ -299,6 +299,7 @@ namespace ErisGameEngineSDL
                     divX = yo[0].x + (xDiff * lerpT);
                 }
                 Vec2int divPoint = new Vec2int((int)divX, yo[1].y);
+                // DIVPOINT NOT CORRECT
                 Vec2int midLeft, midRight;
                 if (xDiff < 0)
                 {
