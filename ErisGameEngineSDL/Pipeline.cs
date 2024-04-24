@@ -294,14 +294,14 @@ namespace ErisGameEngineSDL
                 if (yo[2].x == yo[0].x) divX = yo[2].x;
                 else
                 {
-                    float lerpT = (yo[1].y - yo[0].y) / (yo[2].y - yo[0].y);
+                    float lerpT = (yo[1].y - yo[0].y) / (float)(yo[2].y - yo[0].y);
                     xDiff = yo[2].x - yo[0].x;
                     divX = yo[0].x + (xDiff * lerpT);
                 }
                 Vec2int divPoint = new Vec2int((int)divX, yo[1].y);
                 // DIVPOINT NOT CORRECT
                 Vec2int midLeft, midRight;
-                if (xDiff < 0)
+                if (yo[1].x > divX)
                 {
                     midLeft = divPoint;
                     midRight = yo[1];
@@ -312,14 +312,8 @@ namespace ErisGameEngineSDL
                     midRight = divPoint;
                 }
                 FlatBottom(yo[0], midLeft, midRight);
-                //FlatTop(midLeft, midRight, yo[0]);
+                FlatTop(midLeft, midRight, yo[2]);
             }
-            
-            /*
-            RasterizeLine(a, b);
-            RasterizeLine(b, c);
-            RasterizeLine(c, a);
-            */
         }
         void FrustumClipAndRasterizeLines(int[] lines, Vec3[] cameraSpaceVertices)
         {
