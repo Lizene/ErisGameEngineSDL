@@ -27,5 +27,7 @@ namespace ErisMath
         }
         public Vec3[] GetApices(Vec3[] vertices)
             => [vertices[indices[0]], vertices[indices[1]], vertices[indices[2]]];
+        public Vec3 GetNormal() => normal;
+        public ColorByte GetColor() => color;
     }
 }

@@ -104,7 +104,7 @@ namespace ErisMath
             }
             return intersectionPoints.ToArray();
         }
-        bool IsIntersectionPointInsideFrustum(Vec3 p, int planeIdx)
+        bool IsIntersectionPointInsideFrustum(Vec3 p, int planeIdx) //Is a plane intersection point inside all the other planes of the frustum
         {
             bool isInside = true;
             for (int i = 0; i < 6; i++)
@@ -123,9 +123,10 @@ namespace ErisMath
                 if (IsIntersectionPointInsideFrustum(intersectionPoint, i))
                     return intersectionPoint;
             }
+            Debug.Fail("Couldn't find intersection point");
             return Vec3.zero;
         }
-        public Tuple<Vec3,int> FrustumIntersectionPointAndPlane(Vec3 A, Vec3 B) //Assumes there is exactly one
+        public Tuple<Vec3,int> FrustumIntersectionPointAndPlane(Vec3 A, Vec3 B) //Assumes there is exactly one, also returns index of intersected plane
         {
             for (int i = 0; i < 6; i++)
             {
@@ -134,6 +135,7 @@ namespace ErisMath
                 if (IsIntersectionPointInsideFrustum(intersectionPoint, i))
                     return new Tuple<Vec3,int>(intersectionPoint,i);
             }
+            Debug.Fail("Couldn't find intersection point");
             return new Tuple<Vec3, int>(Vec3.zero,0);
         }
         public Tuple<Vec3,Vec3>? ClipSegment(Vec3 A, Vec3 B)
@@ -159,13 +161,19 @@ namespace ErisMath
             }
             else return new Tuple<Vec3, Vec3>(frustumIntersectionPoints[0], frustumIntersectionPoints[1]);
         }
-        Vec3 FrustumCornerIntersectionWithPlane(int[] frustumPlaneIndices, ref Plane p)
+        Vec3? FrustumCornerIntersectionWithPlane(int[] frustumPlaneIndices, ref Plane p)
         {
-            if (frustumPlaneIndices.Contains(0) || frustumPlaneIndices.Contains(1)) return Vec3.zero;
+            if (frustumPlaneIndices.Contains(0) || frustumPlaneIndices.Contains(1))
+            {
+                return null;
+            }
             else
             {
                 int product = frustumPlaneIndices[0] * frustumPlaneIndices[1];
-                if (product == 6 || product == 20) return Vec3.zero;
+                if (product == 6 || product == 20)
+                {
+                    return null;
+                }
                 int lineNum = 0;
                 switch (product)
                 {
@@ -244,10 +252,14 @@ namespace ErisMath
                         }
                         // Else, add frustum corner triangle
                         Plane trianglePlane = new Plane(insideApex, triangle.normal);
-                        Vec3 cornerPoint = FrustumCornerIntersectionWithPlane([planeIdx1, planeIdx2], ref trianglePlane);
-                        clippedTriangles.Add(new ApexTriangle(
-                            [intersectionPoint1, cornerPoint, intersectionPoint2],
-                            triangle.normal, triangle.color));
+                        Vec3? cornerPointNullable = FrustumCornerIntersectionWithPlane([planeIdx1, planeIdx2], ref trianglePlane);
+                        if (cornerPointNullable is not null) 
+                        {
+                            Vec3 cornerPoint = (Vec3)cornerPointNullable;
+                            clippedTriangles.Add(new ApexTriangle(
+                                [intersectionPoint1, cornerPoint, intersectionPoint2],
+                                triangle.normal, triangle.color));
+                        }
                     }
                 }
                 else if (countVerticesInside == 2)
@@ -274,10 +286,15 @@ namespace ErisMath
                     {
                         if (plane1 < 2 || plane2 < 2) continue; //Skip this part if either of them is the near or far plane.
                         Plane trianglePlane = new Plane(insideApex1, triangle.normal);
-                        Vec3 cornerPoint = FrustumCornerIntersectionWithPlane([plane1,plane2], ref trianglePlane);
-                        clippedTriangles.Add(new ApexTriangle(
-                            [intersectionPoint1,cornerPoint,intersectionPoint2],
-                            triangle.normal,triangle.color));
+                        Vec3? cornerPointNullable = FrustumCornerIntersectionWithPlane([plane1,plane2], ref trianglePlane);
+                        if (cornerPointNullable is not null)
+                        {
+                            Vec3 cornerPoint = (Vec3)cornerPointNullable;
+                            clippedTriangles.Add(new ApexTriangle(
+                                [intersectionPoint1, cornerPoint, intersectionPoint2],
+                                triangle.normal, triangle.color));
+                        }
+                        
                     }
                 }
             }

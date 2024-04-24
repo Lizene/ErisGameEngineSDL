@@ -70,6 +70,8 @@ namespace ErisGameEngineSDL
         [AllowNull] List<Shaped3DObject> sceneGameObjects;
 
         //Drawing
+        delegate uint[,] DrawMethodDelegate(Shaped3DObject[] objects);
+        DrawMethodDelegate drawMethod;
         Vec2int windowFit, fitStart;
         Vec2 fitResRatio;
         int pixelXstart, pixelYstart;
@@ -83,6 +85,7 @@ namespace ErisGameEngineSDL
             InitTime();
             InitInput();
             CreateObjects();
+            SwitchDrawMethod();
         }
         public void Update()
         {
@@ -258,9 +261,11 @@ namespace ErisGameEngineSDL
                             case SDL.SDL_Keycode.SDLK_SPACE:
                                 udComposite++; break;
                             case SDL.SDL_Keycode.SDLK_1:
-                                drawMode = 1; break;
+                                drawMode = 1; SwitchDrawMethod(); break;
                             case SDL.SDL_Keycode.SDLK_2:
-                                drawMode = 2; break;
+                                drawMode = 2; SwitchDrawMethod(); break;
+                            case SDL.SDL_Keycode.SDLK_3:
+                                drawMode = 3; SwitchDrawMethod(); break;
                         }
                         break;
                     case SDL.SDL_EventType.SDL_KEYUP:
@@ -447,26 +452,24 @@ namespace ErisGameEngineSDL
             SDL.SDL_UnlockTexture(renderTexture);
             SDL.SDL_RenderCopy(renderer, renderTexture, IntPtr.Zero, IntPtr.Zero);
         }
+
+        
+        void SwitchDrawMethod()
+        {
+            drawMethod = drawMode switch
+            {
+                1 => pipeline.RenderTriangleLinesNoClip,
+                2 => pipeline.RenderTriangleLines,
+                3 => pipeline.RenderTriangles,
+                _ => x => new uint[0, 0]
+            };
+        }
         void Draw()
         {
             SDL.SDL_RenderClear(renderer);
             uint[,] frameBuffer;
-            Shaped3DObject[] sceneGameObjectsArray = sceneGameObjects.ToArray(); 
-            switch (drawMode)
-            {
-                case 1:
-                    frameBuffer = pipeline.RenderTriangleLinesNoClip(sceneGameObjectsArray);
-                    break;
-                case 2:
-                    frameBuffer = pipeline.RenderTriangleLines(sceneGameObjectsArray);
-                    break;
-                case 3:
-                    frameBuffer = pipeline.RenderTriangles(sceneGameObjectsArray);
-                    break;
-                default:
-                    frameBuffer = new uint[0, 0];
-                    break;
-            }
+            Shaped3DObject[] sceneGameObjectsArray = sceneGameObjects.ToArray();
+            frameBuffer = drawMethod(sceneGameObjectsArray);
             DrawFrameBuffer(frameBuffer);
             SDL.SDL_RenderPresent(renderer);
         }

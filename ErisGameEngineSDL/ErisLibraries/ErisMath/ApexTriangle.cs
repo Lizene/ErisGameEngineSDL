@@ -26,5 +26,7 @@ namespace ErisMath
         Vec3 CalculateNormal(Vec3[] apices)
             => Vec3.Cross(apices[1] - apices[0], apices[2] - apices[1]).normalized();
         public Vec3[] GetApices(Vec3[] vertices) => apices;
+        public Vec3 GetNormal() => normal;
+        public ColorByte GetColor() => color;
     }
 }
