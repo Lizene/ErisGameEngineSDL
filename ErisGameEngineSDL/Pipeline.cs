@@ -177,6 +177,7 @@ namespace ErisGameEngineSDL
         }
         void RasterizeTriangle(Vec3[] apices, ColorByte color, Vec3 preCalculatedNormal)
         {
+            ColorByte diffuse = color * Math.Clamp((Vec3.Dot(preCalculatedNormal, globalLightDir) + 1) / 2, ambientLighting, 1);
             // Camera-relative vertices
             Vec3 aRel = apices[0];
             Vec3 bRel = apices[1];
@@ -290,7 +291,7 @@ namespace ErisGameEngineSDL
                 if (rowXDiff == 0)
                 {
                     if (rowStart == targetResolution.x || yCurrent == targetResolution.y) return;
-                    DepthWrite(rowStart, yCurrent, thirdVertexZ, color, preCalculatedNormal);
+                    DepthWrite(rowStart, yCurrent, thirdVertexZ, diffuse, preCalculatedNormal);
                     return;
                 }
                 //Get interpolated z value by interpolating both the bottom to top vectors by the y-progress value,
@@ -306,7 +307,7 @@ namespace ErisGameEngineSDL
                     float xProgress = i / (float)rowXDiff;
                     float depth = zStart + (xProgress * zRowDiff);
                     //Console.WriteLine(depth);
-                    DepthWrite(xCurrent, yCurrent, depth, color, preCalculatedNormal);
+                    DepthWrite(xCurrent, yCurrent, depth, diffuse, preCalculatedNormal);
                 }
             }
 
@@ -377,8 +378,8 @@ namespace ErisGameEngineSDL
             if (depthBufferValue == 0 || depth <= depthBufferValue)
             {
                 depthBuffer[pixelPosX, pixelPosY] = depth;
-                ColorByte diffuse = color * Math.Clamp((Vec3.Dot(normal, globalLightDir) + 1) / 2, ambientLighting, 1);
-                frameBuffer[pixelPosX, pixelPosY] = diffuse.ToUint();
+                
+                frameBuffer[pixelPosX, pixelPosY] = color.ToUint();
             }
         }
         void FrustumClipAndRasterizeLines(int[] lines, Vec3[] cameraSpaceVertices)

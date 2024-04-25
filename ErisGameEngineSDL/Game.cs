@@ -217,19 +217,22 @@ namespace ErisGameEngineSDL
                 Shaped3DObject.CreateCube(new Vec3(10,4f,-10), pillarScale, ColorByte.Random()),
                 Shaped3DObject.CreateCube(new Vec3(-10,4f,-10), pillarScale, ColorByte.Random()),
                 Shaped3DObject.CreateCube(new Vec3(7,4f,10), pillarScale, ColorByte.Random()),
-                Shaped3DObject.CreateCube(new Vec3(-7,4f,10), pillarScale, ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(-9,4f,10), new Vec3(0.3f, 5, 0.7f), ColorByte.Random()),
 
                 // Make windmill
                 Shaped3DObject.CreateCube(new Vec3(0,16f,-24), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
                 Shaped3DObject.CreateCube(new Vec3(0,16f,-24), Quaternion.Euler(0,0,90), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
-                Shaped3DObject.CreateCube(new Vec3(0,9f,-26.5f), new Vec3(2, 10, 2), ColorByte.Random())
+                Shaped3DObject.CreateCube(new Vec3(0,9f,-26.5f), new Vec3(2, 10, 2), ColorByte.Random()),
 
+                Shaped3DObject.CreateCube(new Vec3(-6.1f,0,4), new Vec3(1,2,1), ColorByte.Random())
                 //Make 
             ];
             sceneGameObjects[2].isRotating = true;
             sceneGameObjects[3].isMorphing = true;
             sceneGameObjects[4].isRotating = true;
             sceneGameObjects[4].isMorphing = true;
+            sceneGameObjects[15].isRotating = true;
+
 
             twoTriangles = [new Shaped3DObject(
                     Mesh.SingleTriangle(ColorByte.BLUE),
@@ -374,9 +377,10 @@ namespace ErisGameEngineSDL
                 go.transform.Rotate(Quaternion.AngleAxis(angle, cubeRotAxis));
             }
             // Rotate windmill
+            /*
             sceneGameObjects[12].transform.Rotate(Quaternion.AngleAxis(angle, Vec3.forward));
             sceneGameObjects[13].transform.Rotate(Quaternion.AngleAxis(angle, Vec3.forward));
-
+            */
             // Morph Cubes
             morphPhase += morphSpeed * deltaTime;
             foreach (Shaped3DObject so in sceneGameObjects)
