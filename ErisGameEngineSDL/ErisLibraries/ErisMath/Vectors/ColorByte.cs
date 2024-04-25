@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -24,6 +25,11 @@ internal struct ColorByte
     {
         _r = r; _g = g; _b = b;
     }
+    public ColorByte(Byte[] rgb)
+    {
+        _r = rgb[0]; _g = rgb[1]; _b = rgb[2];
+    }
+    public static ColorByte Random() => new ColorByte(RandomNumberGenerator.GetBytes(3));
     static byte ByteUpperClamp(uint a)
     {
         if (a > 255) a = 255;

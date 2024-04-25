@@ -68,6 +68,7 @@ namespace ErisGameEngineSDL
 
         //Scene
         [AllowNull] List<Shaped3DObject> sceneGameObjects;
+        Shaped3DObject[] twoTriangles;
 
         //Drawing
         delegate uint[,] DrawMethodDelegate(Shaped3DObject[] objects);
@@ -191,37 +192,37 @@ namespace ErisGameEngineSDL
             sceneGameObjects =
             [
                 //Make floor
-                Shaped3DObject.CreateCube(new Vec3(0,-2,0), new Vec3(11,1,11)),
+                Shaped3DObject.CreateCube(new Vec3(0,-2,0), new Vec3(11,1,11), ColorByte.Random()),
 
                 //Make cube
-                Shaped3DObject.CreateCube(new Vec3(-4,0,4), Vec3.one),
+                Shaped3DObject.CreateCube(new Vec3(-4,0,4), Vec3.one, ColorByte.Random()),
 
                 //Make rotating cube
-                Shaped3DObject.CreateCube(new Vec3(4,1,4), Vec3.one),
+                Shaped3DObject.CreateCube(new Vec3(4,1,4), Vec3.one, ColorByte.Random()),
 
                 //Make size-morphing cube
-                Shaped3DObject.CreateCube(new Vec3(4,1,-4), Vec3.one),
+                Shaped3DObject.CreateCube(new Vec3(4,1,-4), Vec3.one, ColorByte.Random()),
 
                 //Make rotating and size-morphing cube
-                Shaped3DObject.CreateCube(new Vec3(-4,1,-4), Vec3.one),
+                Shaped3DObject.CreateCube(new Vec3(-4,1,-4), Vec3.one, ColorByte.Random()),
 
                 //Make singular triangle object
                 new Shaped3DObject(
-                    Mesh.SingleTriangle(ColorByte.WHITE),
+                    Mesh.SingleTriangle(ColorByte.Random()),
                     new Transform()),
 
                 // Make pillars
-                Shaped3DObject.CreateCube(new Vec3(10,4f,10), pillarScale),
-                Shaped3DObject.CreateCube(new Vec3(-10,4f,10), pillarScale),
-                Shaped3DObject.CreateCube(new Vec3(10,4f,-10), pillarScale),
-                Shaped3DObject.CreateCube(new Vec3(-10,4f,-10), pillarScale),
-                Shaped3DObject.CreateCube(new Vec3(7,4f,10), pillarScale),
-                Shaped3DObject.CreateCube(new Vec3(-7,4f,10), pillarScale),
+                Shaped3DObject.CreateCube(new Vec3(10,4f,10), pillarScale, ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(-10,4f,10), pillarScale, ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(10,4f,-10), pillarScale, ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(-10,4f,-10), pillarScale, ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(7,4f,10), pillarScale, ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(-7,4f,10), pillarScale, ColorByte.Random()),
 
                 // Make windmill
-                Shaped3DObject.CreateCube(new Vec3(0,16f,-24), new Vec3(1.3f, 8, 0.3f)),
-                Shaped3DObject.CreateCube(new Vec3(0,16f,-24), Quaternion.Euler(0,0,90), new Vec3(1.3f, 8, 0.3f)),
-                Shaped3DObject.CreateCube(new Vec3(0,9f,-26.5f), new Vec3(2, 10, 2))
+                Shaped3DObject.CreateCube(new Vec3(0,16f,-24), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(0,16f,-24), Quaternion.Euler(0,0,90), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(0,9f,-26.5f), new Vec3(2, 10, 2), ColorByte.Random())
 
                 //Make 
             ];
@@ -229,6 +230,12 @@ namespace ErisGameEngineSDL
             sceneGameObjects[3].isMorphing = true;
             sceneGameObjects[4].isRotating = true;
             sceneGameObjects[4].isMorphing = true;
+
+            twoTriangles = [new Shaped3DObject(
+                    Mesh.SingleTriangle(ColorByte.BLUE),
+                    new Transform()),new Shaped3DObject(
+                    Mesh.SingleTriangle(ColorByte.GREEN),
+                    new Transform(Vec3.forward)),];
         }
 
         void Events()
@@ -355,6 +362,7 @@ namespace ErisGameEngineSDL
         {
             TransformCamera();
             TransformSceneObjects();
+            TransformLight();
         }
         void TransformSceneObjects()
         {
@@ -401,6 +409,11 @@ namespace ErisGameEngineSDL
                 Quaternion camRot = Quaternion.Euler(udRot,lrRot,0);
                 camera.SetRotation(camRot);
             }
+        }
+        void TransformLight()
+        {
+            float yRotation = 25 * deltaTime;
+            pipeline.globalLightDir = Quaternion.RotateVector(pipeline.globalLightDir, Quaternion.Euler(0, yRotation));
         }
         void DrawClear()
         {
@@ -452,8 +465,6 @@ namespace ErisGameEngineSDL
             SDL.SDL_UnlockTexture(renderTexture);
             SDL.SDL_RenderCopy(renderer, renderTexture, IntPtr.Zero, IntPtr.Zero);
         }
-
-        
         void SwitchDrawMethod()
         {
             drawMethod = drawMode switch

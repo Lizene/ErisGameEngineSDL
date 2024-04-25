@@ -4,6 +4,7 @@ using SDL2;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -25,6 +26,9 @@ namespace ErisGameEngineSDL
         Quaternion cameraRotation, invertedCameraRotation;
 
         RectangleFrustum worldSpaceFrustum, cameraSpaceFrustum;
+
+        float ambientLighting = 0.4f;
+        public Vec3 globalLightDir = -Vec3.one;
 
         public Pipeline(Vec2int targetResolution, Camera camera) 
         {
@@ -111,6 +115,7 @@ namespace ErisGameEngineSDL
             {
                 if (go == null) continue;
                 //transformed vertices from object space to camera space
+                Vec3[] vertices = go.transformedMesh.vertices;
                 Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
                 //Frustum culling
@@ -118,28 +123,35 @@ namespace ErisGameEngineSDL
 
                 //If gameobject completely inside frustum, render triangles as they are.
                 IndexTriangle[] indexTriangles = go.transformedMesh.triangles;
-                Vec3 camFacingDir = cameraTransform.forward;
+                Vec3 camPos = camera.transform.position;
+                bool isFacingCamera(IndexTriangle t)
+                {
+                    Vec3[] apices = t.GetApices(cameraSpaceVertices);
+                    Vec3 cameraSpaceNormal = ITriangle.TriangleNormal(apices);
+                    return Vec3.Dot(apices[0], cameraSpaceNormal) >= 0
+                            || Vec3.Dot(apices[1], cameraSpaceNormal) >= 0
+                            || Vec3.Dot(apices[2], cameraSpaceNormal) >= 0;
+                }
+                IndexTriangle[] cameraFacingTriangles = indexTriangles.Where(t => isFacingCamera(t)).ToArray();
                 if (worldSpaceFrustum.IsGameObjectCompletelyInside(go))
                 {
                     //Rasterize triangles to frame buffer
-                    foreach (IndexTriangle triangle in indexTriangles)
+                    foreach (IndexTriangle triangle in cameraFacingTriangles)
                     {
-                        //if (Vec3.Dot(camFacingDir, triangle.normal) < 0) continue; // Only render front side of objects
                         Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
-                        RasterizeTriangle(apices, triangle.color);
+                        RasterizeTriangle(apices, triangle.color, triangle.normal);
                     }
                     continue;
                 }
                 //Else, clip triangles first
-                ITriangle[] clippedTriangles = cameraSpaceFrustum.ClipTriangles(cameraSpaceVertices, indexTriangles);
+                ITriangle[] clippedTriangles = cameraSpaceFrustum.ClipTriangles(cameraSpaceVertices, cameraFacingTriangles);
                 //Rasterize triangles to frame buffer
                 foreach (ITriangle triangle in clippedTriangles)
                 {
                     Vec3 normal = triangle.GetNormal();
-                    //if (Vec3.Dot(camFacingDir, normal) < 0) continue; // Only render front side of objects
                     Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
                     ColorByte color = triangle.GetColor();
-                    RasterizeTriangle(apices, color);
+                    RasterizeTriangle(apices, color, normal);
                 }
             }
             return frameBuffer;
@@ -163,16 +175,28 @@ namespace ErisGameEngineSDL
             Vec3[] verticesRelPos = vertices.Select(v => relPos + v).ToArray();
             return Quaternion.RotateVectors(verticesRelPos, invertedCameraRotation, cameraRotation);
         }
-        void RasterizeTriangle(Vec3[] apices, ColorByte color)
+        void RasterizeTriangle(Vec3[] apices, ColorByte color, Vec3 preCalculatedNormal)
         {
-            Vec3 ar = apices[0];
-            Vec3 br = apices[1];
-            Vec3 cr = apices[2];
+            // Camera-relative vertices
+            Vec3 aRel = apices[0];
+            Vec3 bRel = apices[1];
+            Vec3 cRel = apices[2];
             
-            Vec2int a = Project(ar);
-            Vec2int b = Project(br);
-            Vec2int c = Project(cr);
+            // Projected vertices (not rounded to pixels)
+            Vec2 aProj = ProjectFloat(aRel);
+            Vec2 bProj = ProjectFloat(bRel);
+            Vec2 cProj = ProjectFloat(cRel);
 
+            // Rounded projected vertices
+            Vec2int aPixel = aProj.ToInt();
+            Vec2int bPixel = bProj.ToInt();
+            Vec2int cPixel = cProj.ToInt();
+
+            // Projected vertices with relative vertices' depth as the third value
+            // to carry the depth information attached to the vertex.
+            Vec3 a = new Vec3(aProj.x, aProj.y, aRel.z);
+            Vec3 b = new Vec3(bProj.x, bProj.y, bRel.z);
+            Vec3 c = new Vec3(cProj.x, cProj.y, cRel.z);
 
             // Optimal find triangle bounding rectangle
             /*
@@ -191,63 +215,103 @@ namespace ErisGameEngineSDL
             if (c.y > endY) endY = c.y;
             */
 
+            //Find centroid of the 3D triangle and set triangle color based on resolution position and depth
             Vec3 centroid3d = ITriangle.Centroid(apices);
             Vec2int centroidProj = Project(centroid3d);
-            byte c_r = (byte)(255 * centroidProj.x / (float)targetResolution.x);
-            byte c_g = (byte)(255 * centroidProj.y / (float)targetResolution.y);
-            byte c_b = (byte)(255*Math.Clamp(1f - centroid3d.z / 20f, 0, 1f));
-            ColorByte posColor = new ColorByte(c_r, c_g, c_b);
-
-            void FlatTop(Vec2int topleft, Vec2int topright, Vec2int bottom)
+            byte color_r = (byte)(255 * centroidProj.x / (float)targetResolution.x);
+            byte color_g = (byte)(255 * centroidProj.y / (float)targetResolution.y);
+            byte color_b = (byte)(255*Math.Clamp(1f - centroid3d.z / camera.farClipPlaneDistance, 0, 1f));
+            ColorByte posColor = new ColorByte(color_r, color_g, color_b);
+            //My methods involve taking the vertex with the different y value,
+            //taking the vectors from that vertex to the flat left and right vertices,
+            //and multiplying them by the y-progress to get the start x and end x for the x-row.
+            
+            //Method for rasterizing a projected triangle with a flat top
+            void FlatTop(Vec3 topleft, Vec3 topright, Vec3 bottom)
             {
                 
-                int xDiffL = topleft.x - bottom.x;
-                int xDiffR = topright.x - bottom.x ;
-                int startY = bottom.y;
-                int endY = topleft.y;
-                int yDiff = endY - startY;
-                if (yDiff <= 0) Debug.Fail("ÖOfej");
-                int startX, endX;
-                for (int j = 0; j <= yDiff; j++)
+                float xDiffL = topleft.x - bottom.x;
+                float xDiffR = topright.x - bottom.x;
+                float zDiffL = topleft.z - bottom.z;
+                float zDiffR = topright.z - bottom.z;
+                int yStart = (int)Math.Floor(bottom.y);
+                if (yStart == -1) yStart++;
+                int yDiff = (int)topleft.y - yStart;
+                if (yDiff <= 0) Debug.Fail("yDiff should always be positive");
+                bool isTopLeft = xDiffL > 0;
+                for (int j = 0; j <= yDiff; j++) //comparison might be wrong
                 {
-                    int currentY = startY + j;
-                    if (currentY == targetResolution.y) continue;
-                    float progress = j / (float)yDiff;
-                    startX = bottom.x + (int)(progress * xDiffL);
-                    endX = bottom.x + (int)(progress * xDiffR);
-                    for (int i = startX; i < endX; i++)
-                    {
-                        if (i == targetResolution.x) continue;
-                        frameBuffer[i, currentY] = posColor.ToUint();
-                    }
+                    int yCurrent = yStart + j; //Screen pixelheight of the current row
+                    if (yCurrent == targetResolution.y) continue; 
+                    // "continue" because it should cause an error when it's higher than the resolution y,
+                    // because that means there's something wrong with the code.
+                    // It can skip if and only if it's exactly the same as the resolution y
+
+                    //Get percent progress of the y-loop and multiply by
+                    //x differences to the left and right to get the start and end x of the row
+                    float yProgress = j / (float)yDiff;
+                    RasterizeRow(bottom.x, bottom.z, isTopLeft, xDiffL, xDiffR, zDiffL, zDiffR, yCurrent, yProgress);
                 }
             }
-            void FlatBottom(Vec2int top, Vec2int bottomleft, Vec2int bottomright)
+
+            //Method for rasterizing a projected triangle with a flat bottom
+            //Same as FlatTop but instead of going from bottom to top, this one goes from top to bottom
+            void FlatBottom(Vec3 top, Vec3 bottomleft, Vec3 bottomright)
             {
-                //Vec2 top2l = (bottomleft - top).ToFloat();
-                //Vec2 top2r = (bottomright - top).ToFloat();
-                int xDiffL = bottomleft.x - top.x;
-                int xDiffR = bottomright.x - top.x;
-                int startY = top.y;
-                int endY = bottomleft.y;
-                int yDiff = startY - endY;
-                if (yDiff <= 0) Debug.Fail("ÖOfej");
-                int startX, endX;
+                
+                float xDiffL = bottomleft.x - top.x;
+                float xDiffR = bottomright.x - top.x;
+                float zDiffL = bottomleft.z - top.z;
+                float zDiffR = bottomright.z - top.z;
+                int yStart = (int)top.y;
+                if (yStart == -1) yStart++;
+                int yDiff = yStart - (int)bottomleft.y;
+                if (yDiff <= 0) Debug.Fail("yDiff should always be positive");
+                bool isTopLeft = xDiffL < 0;
                 for (int j = 0; j <= yDiff; j++)
                 {
-                    int currentY = startY - j;
-                    if (currentY == targetResolution.y) continue;
-                    float progress = j / (float)yDiff;
-                    startX = top.x+(int)(progress * xDiffL);
-                    endX = top.x+(int)(progress * xDiffR);
-                    for (int i = startX; i < endX; i++)
-                    {
-                        if (i == targetResolution.x) continue;
-                        frameBuffer[i, currentY] = posColor.ToUint();
-                    }
+                    int yCurrent = yStart - j;
+                    if (yCurrent == targetResolution.y) continue;
+                    float yProgress = j / (float)yDiff;
+                    RasterizeRow(top.x, top.z, isTopLeft, xDiffL, xDiffR, zDiffL, zDiffR, yCurrent, yProgress);
                 }
             }
-            void Flat(Vec2int flat1, Vec2int flat2, Vec2int third)
+
+            //Method for rasterizing a row in the forloop of the triangle y-value.
+            //I differentiated this from FlatTop() and FlatBottom() because it's the same in both
+            void RasterizeRow(float thirdVertexX, float thirdVertexZ, bool isTopLeft, float xDiffL, float xDiffR, float zDiffL, float zDiffR, int yCurrent, float yProgress)
+            {
+                int rowStart = (int)(Math.Floor(thirdVertexX) + (yProgress * xDiffL));
+                if (rowStart == -1) rowStart++;
+                int rowEnd = (int)(Math.Floor(thirdVertexX) + (yProgress * xDiffR));
+                if (rowEnd == targetResolution.x + 1) rowEnd--;
+                int rowXDiff = rowEnd - rowStart;
+                //Third vertex point
+                if (rowXDiff == 0)
+                {
+                    if (rowStart == targetResolution.x || yCurrent == targetResolution.y) return;
+                    DepthWrite(rowStart, yCurrent, thirdVertexZ, color, preCalculatedNormal);
+                    return;
+                }
+                //Get interpolated z value by interpolating both the bottom to top vectors by the y-progress value,
+                //then interpolating between those by the x-progress value
+                float zStart = thirdVertexZ + (yProgress * zDiffL);
+                float zEnd = thirdVertexZ + (yProgress * zDiffR);
+                float zRowDiff = zEnd - zStart;
+                for (int i = 0; i <= rowXDiff; i++) //comparison might be wrong
+                {
+                    int xCurrent = rowStart + i;
+                    if (xCurrent == targetResolution.x) continue; // Same reason for "continue" here
+
+                    float xProgress = i / (float)rowXDiff;
+                    float depth = zStart + (xProgress * zRowDiff);
+                    //Console.WriteLine(depth);
+                    DepthWrite(xCurrent, yCurrent, depth, color, preCalculatedNormal);
+                }
+            }
+
+            //Method for determining order of vertices when two of the y-values are the same
+            void Flat(Vec3 flat1, Vec3 flat2, Vec3 third)
             {
                 if (third.y < flat1.y)
                 {
@@ -260,59 +324,61 @@ namespace ErisGameEngineSDL
                     else FlatBottom(third, flat2, flat1);
                 }
             }
+
             //Check for a flat top or bottom, if doens't have,
             //divide into two triangles with a flat bottom and flat top
-            if (a.y == b.y && a.y == c.y) return;
-            if (a.y == b.y) Flat(a, b, c);
-            else if (a.y == c.y) Flat(a, c, b);
-            else if (b.y == c.y) Flat(b, c, a);
+            if ((aPixel.y == bPixel.y && aPixel.y == cPixel.y) || (aPixel.x == bPixel.x && aPixel.x == cPixel.x)) 
+                return; //If no y- or x- difference, don't draw the triangle
+            if (aPixel.y == bPixel.y) Flat(a, b, c);
+            else if (aPixel.y == cPixel.y) Flat(a, c, b);
+            else if (bPixel.y == cPixel.y) Flat(b, c, a);
             else
             {
-                
-                //Sort projected vertices by height
-                Vec2int[] yo = [a, b, c];
+                //Sort projected triangle vertices by height
+                Vec3 top = a; Vec3 mid = b; Vec3 bot = c;
                 if (b.y > a.y)
                 {
-                    yo[0] = b;
-                    yo[1] = a;
+                    top = b;
+                    mid = a;
                 }
-                if (yo[2].y > yo[1].y)
+                if (bot.y > mid.y)
                 {
-                    Vec2int temp = yo[1];
-                    yo[1] = yo[2];
-                    yo[2] = temp;
+                    Vec3 temp = mid;
+                    mid = bot;
+                    bot = temp;
                 }
-                if (yo[1].y > yo[0].y)
+                if (mid.y > top.y)
                 {
-                    Vec2int temp = yo[0];
-                    yo[0] = yo[1];
-                    yo[1] = temp;
+                    Vec3 temp = top;
+                    top = mid;
+                    mid = temp;
                 }
-                //Divide into two triangles
-                float divX;
-                int xDiff = 0;
-                if (yo[2].x == yo[0].x) divX = yo[2].x;
-                else
-                {
-                    float lerpT = (yo[1].y - yo[0].y) / (float)(yo[2].y - yo[0].y);
-                    xDiff = yo[2].x - yo[0].x;
-                    divX = yo[0].x + (xDiff * lerpT);
-                }
-                Vec2int divPoint = new Vec2int((int)divX, yo[1].y);
-                // DIVPOINT NOT CORRECT
-                Vec2int midLeft, midRight;
-                if (yo[1].x > divX)
-                {
-                    midLeft = divPoint;
-                    midRight = yo[1];
-                }
-                else
-                {
-                    midLeft = yo[1];
-                    midRight = divPoint;
-                }
-                FlatBottom(yo[0], midLeft, midRight);
-                FlatTop(midLeft, midRight, yo[2]);
+                
+                //Divide into two triangles with a divpoint with the same height as the
+                //middle vertex and an interpolated x and depth value
+                float lerpT = (mid.y - top.y) / (bot.y - top.y);
+                float divPointX = (int)bot.x == (int)top.x ? bot.x : top.x + ((bot.x-top.x) * lerpT);
+                float divPointDepth = top.z + ((bot.z - top.z) * lerpT);
+                Vec3 divPoint = new Vec3(divPointX, mid.y, divPointDepth); //depth not correct
+
+                //Sort mid and divPoint by x-value
+                Vec3 midLeft, midRight;
+                if (mid.x > divPointX) { midLeft = divPoint; midRight = mid; }
+                else { midLeft = mid; midRight = divPoint; }
+
+                FlatBottom(top, midLeft, midRight);
+                FlatTop(midLeft, midRight, bot);
+            }
+        }
+        void DepthWrite(int pixelPosX, int pixelPosY, float depth, ColorByte color, Vec3 normal)
+        {
+            if (depth is float.NaN) Debug.Fail("NAN");
+            float depthBufferValue = depthBuffer[pixelPosX, pixelPosY];
+            if (depthBufferValue == 0 || depth <= depthBufferValue)
+            {
+                depthBuffer[pixelPosX, pixelPosY] = depth;
+                ColorByte diffuse = color * Math.Clamp((Vec3.Dot(normal, globalLightDir) + 1) / 2, ambientLighting, 1);
+                frameBuffer[pixelPosX, pixelPosY] = diffuse.ToUint();
             }
         }
         void FrustumClipAndRasterizeLines(int[] lines, Vec3[] cameraSpaceVertices)
@@ -383,7 +449,14 @@ namespace ErisGameEngineSDL
             if (framePos.y == targetResolution.y) framePos.y--;
             return framePos;
         }
-        
+        Vec2 ProjectFloat(Vec3 v) //Camera-relative position to unrounded resolution coordinates
+        {
+            Vec2 framePos = new Vec2(
+                   (targetResolution.x * ((camera.viewPlaneDistance * v.x / (viewPortSize.x * v.z)) + 0.5f)),
+                   (targetResolution.y * ((camera.viewPlaneDistance * v.y / (viewPortSize.y * v.z)) + 0.5f)));
+            
+            return framePos;
+        }
         public Tuple<Vec2int[],int[]> TriangleLinesSDLDrawLine(Shaped3DObject[] gameObjects)
         {
             invertedCameraRotation = cameraTransform.rotation.inverted();

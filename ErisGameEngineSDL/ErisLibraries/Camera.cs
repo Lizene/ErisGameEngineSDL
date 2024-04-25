@@ -14,12 +14,14 @@ namespace ErisGameEngineSDL.ErisLibraries
         public RectangleFrustum cameraSpaceFrustum { get; } // original
         public RectangleFrustum worldSpaceFrustum { get; } // transformed
         public Vec2 viewPortSize { get; }
-        public float viewPlaneDistance;
+        public readonly float viewPlaneDistance, nearClipPlaneDistance, farClipPlaneDistance;
         public Camera(Transform transform, float FOV, float nearClipPlaneDistance, float farClipPlaneDistance, Vec2 viewPortSize) 
         {
             this.transform = transform;
             this.viewPortSize = viewPortSize;
             viewPlaneDistance = (float)(viewPortSize.x / (2 * Math.Tan(Constants.deg2rad * FOV / 2)));
+            this.nearClipPlaneDistance = nearClipPlaneDistance; 
+            this.farClipPlaneDistance = farClipPlaneDistance; 
             cameraSpaceFrustum = new RectangleFrustum(viewPortSize, viewPlaneDistance, nearClipPlaneDistance, farClipPlaneDistance);
             worldSpaceFrustum = new RectangleFrustum(viewPortSize, viewPlaneDistance, nearClipPlaneDistance, farClipPlaneDistance);
             TransformFrustum();
