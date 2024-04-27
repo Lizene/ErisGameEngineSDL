@@ -16,18 +16,23 @@ using System.Collections;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Reflection;
+using System.Runtime.InteropServices.Marshalling;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ErisGameEngineSDL
 {
     internal class Game
     {
+        //Instance
+        public static Game instance;
+
         //SDL
         SDL.SDL_bool sdltrue = SDL.SDL_bool.SDL_TRUE;
         SDL.SDL_bool sdlfalse = SDL.SDL_bool.SDL_FALSE;
 
         //Events
         public bool quit = false;
-        SDL.SDL_Event e;
+        SDL.SDL_Event SDLEvent;
 
         //Window
         public IntPtr window, renderer, windowSurface, GL = IntPtr.Zero;
@@ -52,7 +57,7 @@ namespace ErisGameEngineSDL
         ushort fpsLimit = 60000;
         uint deltaTimeFloor;
         float deltaTime;
-        uint secondCounter = 0;
+        uint milliSecondCounter = 0;
         uint frameCounter = 0;
 
         //Cube transformation
@@ -67,19 +72,24 @@ namespace ErisGameEngineSDL
         static readonly float cameraMoveSpeed = 10f;
 
         //Scene
-        [AllowNull] List<Shaped3DObject> sceneGameObjects;
-        Shaped3DObject[] twoTriangles;
+        Shaped3DObject[] sceneGameObjects = [];
+        Shaped3DObject[] twoTriangles = [];
 
         //Drawing
         delegate uint[,] DrawMethodDelegate(Shaped3DObject[] objects);
-        DrawMethodDelegate drawMethod;
+        DrawMethodDelegate drawMethod = x => new uint[0,0];
         Vec2int windowFit, fitStart;
         Vec2 fitResRatio;
         int pixelXstart, pixelYstart;
-        byte drawMode = 2;
+        public byte drawModeNum = 2;
         private int resXtimesY;
 
-        public Game() {}
+        public Game()
+        {
+            if (instance == null) instance = this;
+            else Debug.Fail("There cannot be more than one instance of Game");
+            instance = this;
+        }
         public void Start()
         {
             InitWindow();
@@ -92,7 +102,7 @@ namespace ErisGameEngineSDL
         {
             ulong frameStartTime = SDL.SDL_GetTicks64(); //Get frame start time
             Events();
-            TransformObjects();
+            UpdateScene();
             Draw();
             uint realDeltaTime = (uint)(SDL.SDL_GetTicks64() - frameStartTime);
             //Calculate deltaTime
@@ -108,10 +118,10 @@ namespace ErisGameEngineSDL
             }
             //Frame counter
             frameCounter++;
-            secondCounter += (uint)(SDL.SDL_GetTicks64() - frameStartTime);
-            if (secondCounter > 1000)
+            milliSecondCounter += (uint)(SDL.SDL_GetTicks64() - frameStartTime);
+            if (milliSecondCounter >= 1000)
             {
-                secondCounter -= 1000;
+                milliSecondCounter -= 1000;
                 Console.WriteLine($"FPS: {frameCounter}");
                 frameCounter = 0;
             }
@@ -221,7 +231,7 @@ namespace ErisGameEngineSDL
 
                 // Make windmill
                 Shaped3DObject.CreateCube(new Vec3(0,16f,-24), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
-                Shaped3DObject.CreateCube(new Vec3(0,16f,-24), Quaternion.Euler(0,0,90), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
+                //Shaped3DObject.CreateCube(new Vec3(0,16f,-24), Quaternion.Euler(0,0,90), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
                 Shaped3DObject.CreateCube(new Vec3(0,9f,-26.5f), new Vec3(2, 10, 2), ColorByte.Random()),
 
                 Shaped3DObject.CreateCube(new Vec3(-6.1f,0,4), new Vec3(1,2,1), ColorByte.Random())
@@ -231,30 +241,33 @@ namespace ErisGameEngineSDL
             sceneGameObjects[3].isMorphing = true;
             sceneGameObjects[4].isRotating = true;
             sceneGameObjects[4].isMorphing = true;
-            sceneGameObjects[15].isRotating = true;
+            //sceneGameObjects[15].isRotating = true;
 
 
-            twoTriangles = [new Shaped3DObject(
+            twoTriangles = [
+                new Shaped3DObject(
                     Mesh.SingleTriangle(ColorByte.BLUE),
-                    new Transform()),new Shaped3DObject(
+                    new Transform(Vec3.zero)),
+                new Shaped3DObject(
                     Mesh.SingleTriangle(ColorByte.GREEN),
-                    new Transform(Vec3.forward)),];
+                    new Transform(new Vec3(0,0,0.7f), Quaternion.Euler(90,0)))
+            ];
         }
 
         void Events()
         {
             mouseDelta = Vec2.zero;
             bool resized = false;
-            while (SDL.SDL_PollEvent(out e) != 0)
+            while (SDL.SDL_PollEvent(out SDLEvent) != 0)
             {
-                switch (e.type)
+                switch (SDLEvent.type)
                 {
                     case SDL.SDL_EventType.SDL_QUIT:
                         quit = true;
                         break;
                     case SDL.SDL_EventType.SDL_KEYDOWN:
-                        if (e.key.repeat != 0 || !inputEnabled) break;
-                        switch (e.key.keysym.sym)
+                        if (SDLEvent.key.repeat != 0 || !inputEnabled) break;
+                        switch (SDLEvent.key.keysym.sym)
                         {
                             case SDL.SDL_Keycode.SDLK_ESCAPE:
                                 EscapeWindow(); break;
@@ -271,16 +284,18 @@ namespace ErisGameEngineSDL
                             case SDL.SDL_Keycode.SDLK_SPACE:
                                 udComposite++; break;
                             case SDL.SDL_Keycode.SDLK_1:
-                                drawMode = 1; SwitchDrawMethod(); break;
+                                drawModeNum = 1; SwitchDrawMethod(); break;
                             case SDL.SDL_Keycode.SDLK_2:
-                                drawMode = 2; SwitchDrawMethod(); break;
+                                drawModeNum = 2; SwitchDrawMethod(); break;
                             case SDL.SDL_Keycode.SDLK_3:
-                                drawMode = 3; SwitchDrawMethod(); break;
+                                drawModeNum = 3; SwitchDrawMethod(); break;
+                            case SDL.SDL_Keycode.SDLK_4:
+                                drawModeNum = 4; SwitchDrawMethod(); DrawClearAndRenderPresent(); break;
                         }
                         break;
                     case SDL.SDL_EventType.SDL_KEYUP:
                         if (!inputEnabled) break;
-                        switch (e.key.keysym.sym)
+                        switch (SDLEvent.key.keysym.sym)
                         {
                             case SDL.SDL_Keycode.SDLK_w:
                                 wasdComposite.y--; break;
@@ -297,10 +312,10 @@ namespace ErisGameEngineSDL
                         }
                         break;
                     case SDL.SDL_EventType.SDL_MOUSEMOTION:
-                        mouseDelta = new Vec2(e.motion.xrel, e.motion.yrel);
+                        mouseDelta = new Vec2(SDLEvent.motion.xrel, SDLEvent.motion.yrel);
                         break;
                     case SDL.SDL_EventType.SDL_MOUSEBUTTONDOWN:
-                        switch (e.button.button)
+                        switch (SDLEvent.button.button)
                         {
                             case (byte)SDL.SDL_BUTTON_LEFT:
                                 Console.WriteLine("Click :)");
@@ -311,7 +326,7 @@ namespace ErisGameEngineSDL
                         }
                         break;
                     case SDL.SDL_EventType.SDL_WINDOWEVENT:
-                        switch (e.window.windowEvent)
+                        switch (SDLEvent.window.windowEvent)
                         {
                             case SDL.SDL_WindowEventID.SDL_WINDOWEVENT_RESIZED:
                                 resized = true; break;
@@ -361,7 +376,7 @@ namespace ErisGameEngineSDL
             pixelYstart = windowSize.y - fitStart.y;
             fitResRatio = new Vec2(windowFit.x / (float)targetResolution.x, windowFit.y / (float)targetResolution.y);
         }
-        void TransformObjects()
+        void UpdateScene()
         {
             TransformCamera();
             TransformSceneObjects();
@@ -431,24 +446,11 @@ namespace ErisGameEngineSDL
             SDL.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 1);
             SDL.SDL_RenderFillRect(renderer, ref rect);*/
         }
-        void DrawGameObjectsAsSDLLine()
+        void DrawClearAndRenderPresent()
         {
-            DrawClear();
-            var renderResult = pipeline.TriangleLinesSDLDrawLine(sceneGameObjects.ToArray());
-            Vec2int[] pixelPositions = renderResult.Item1;
-            int[] lines = renderResult.Item2;
-            List<SDL.SDL_Point> points = new List<SDL.SDL_Point>();
-
-            for (int i = 0; i < lines.Length; i++)
-            {
-                var point = new SDL.SDL_Point();
-                var pixelPos = pixelPositions[lines[i]];
-                point.x = pixelXstart + (int)(pixelPos.x * fitResRatio.x);
-                point.y = pixelYstart - (int)(pixelPos.y * fitResRatio.y);
-                points.Add(point);
-            }
-            SDL.SDL_SetRenderDrawColor(renderer, 0, 255, 150, 1);
-            SDL.SDL_RenderDrawLines(renderer, points.ToArray(), points.Count);
+            SDL.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 1);
+            SDL.SDL_RenderClear(renderer);
+            SDL.SDL_RenderPresent(renderer);
         }
         void DrawFrameBuffer(uint[,] frameBuffer)
         {
@@ -468,27 +470,52 @@ namespace ErisGameEngineSDL
             }
             SDL.SDL_UnlockTexture(renderTexture);
             SDL.SDL_RenderCopy(renderer, renderTexture, IntPtr.Zero, IntPtr.Zero);
+            SDL.SDL_RenderPresent(renderer);
+        }
+        void DrawFrameBufferPixelByPixel(uint[,] frameBuffer)
+        {
+            SDL.SDL_RenderClear(renderer);
+            for (int j = 0; j < targetResolution.y; j++)
+            {
+                for (int i = 0; i < targetResolution.x; i++)
+                {
+                    uint color = frameBuffer[i,j];
+                    byte r = (byte)((color >> 16) & 0xFF); // Extract the first byte
+                    byte b = (byte)((color >> 8) & 0xFF);  // Extract the second byte
+                    byte g = (byte)(color & 0xFF);         // Extract the third byte
+                    SDL.SDL_SetRenderDrawColor(renderer, r, g, b, 1);
+                    SDL.SDL_RenderDrawPoint(renderer, i, targetResolution.y - 1 - j);
+                    SDL.SDL_RenderPresent(renderer);
+                }
+            }
+        }
+        public void DrawPixel(int x, int y, ColorByte color)
+        {
+            SDL.SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 1);
+            SDL.SDL_RenderDrawPoint(renderer, x, targetResolution.y - 1 - y);
+            SDL.SDL_RenderPresent(renderer);
+            Thread.Sleep(4);
         }
         void SwitchDrawMethod()
         {
-            drawMethod = drawMode switch
+            drawMethod = drawModeNum switch
             {
-                1 => pipeline.RenderTriangleLinesNoClip,
-                2 => pipeline.RenderTriangleLines,
+                1 => pipeline.RenderTriangleSegmentsNoClip,
+                2 => pipeline.RenderTriangleSegments,
                 3 => pipeline.RenderTriangles,
+                4 => pipeline.RenderTriangles,
                 _ => x => new uint[0, 0]
             };
         }
         void Draw()
         {
-            SDL.SDL_RenderClear(renderer);
-            uint[,] frameBuffer;
-            Shaped3DObject[] sceneGameObjectsArray = sceneGameObjects.ToArray();
-            frameBuffer = drawMethod(sceneGameObjectsArray);
+            uint[,] frameBuffer = drawMethod(sceneGameObjects);
             DrawFrameBuffer(frameBuffer);
-            SDL.SDL_RenderPresent(renderer);
+            
+            if (drawModeNum != 4) return;
+            Thread.Sleep(500);
+            DrawClearAndRenderPresent();
         }
-
         public void Quit(int exitCode)
         {
             SDL.SDL_DestroyWindow(window);

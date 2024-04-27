@@ -16,8 +16,8 @@ namespace ErisGameEngineSDL.ErisLibraries
         public Vec3 scale { get => _scale; set => SetScale(value); }
         Quaternion _rotation;
         public Quaternion rotation { get { return _rotation; } }
-        [AllowNull] Shaped3DObject gameObject;
-        [AllowNull] public Transform parent;
+        Shaped3DObject? gameObject;
+        public Transform? parent;
         public List<Transform> children;
         public static Transform zero = 
             new Transform(Vec3.zero, Quaternion.identity, Vec3.one, null);
@@ -35,13 +35,21 @@ namespace ErisGameEngineSDL.ErisLibraries
             children = new List<Transform>();
             SetParent(parent);
         }
+        public Transform(Vec3 position, Quaternion rotation, Vec3 scale)
+        {
+            this.position = position;
+            _scale = scale;
+            SetRotation(rotation);
+            children = new List<Transform>();
+            SetParent(null);
+        }
         public Transform(Vec3 position)
         {
             this.position = position;
             _scale = Vec3.one;
             SetRotation(Quaternion.identity);
             children = new List<Transform>();
-            parent = null;
+            SetParent(null);
         }
         public Transform(Vec3 position, Vec3 scale) 
         {
@@ -49,7 +57,7 @@ namespace ErisGameEngineSDL.ErisLibraries
             _scale = scale;
             SetRotation(Quaternion.identity);
             children = new List<Transform>();
-            parent = null;
+            SetParent(null);
 
         }
         public Transform(Vec3 position, Quaternion rotation)
@@ -58,7 +66,7 @@ namespace ErisGameEngineSDL.ErisLibraries
             _scale = Vec3.one;
             SetRotation(rotation);
             children = new List<Transform>();
-            parent = null;
+            SetParent(null);
         }
         public Transform()
         {
@@ -66,7 +74,7 @@ namespace ErisGameEngineSDL.ErisLibraries
             _scale = Vec3.one;
             SetRotation(Quaternion.identity);
             children = new List<Transform>();
-            parent = null;
+            SetParent(null);
         }
         public void SetGameObjectReference(Shaped3DObject go) { gameObject = go; }
         public void SetParent(Transform? newParent)

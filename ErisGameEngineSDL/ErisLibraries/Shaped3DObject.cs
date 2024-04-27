@@ -30,13 +30,14 @@ namespace ErisGameEngineSDL.ErisLibraries
             transformedMesh.triangles = new IndexTriangle[mesh.triangles.Length];
             mesh.triangles.CopyTo(transformedMesh.triangles, 0);
             UpdateTransformedMeshScale();
+            UpdateTransformedMeshRotation();
         }
         public static Shaped3DObject CreateCube(Vec3 position, Vec3 scale, ColorByte color)
             => CreateCube(position, Quaternion.identity, scale, color);
         public static Shaped3DObject CreateCube(Vec3 position, Quaternion rotation, Vec3 scale, ColorByte color)
             => new Shaped3DObject(
                     Mesh.Cube(color),
-                    new Transform(position, rotation, scale, null));
+                    new Transform(position, rotation, scale));
         
         public Shaped3DObject Copy()
         {

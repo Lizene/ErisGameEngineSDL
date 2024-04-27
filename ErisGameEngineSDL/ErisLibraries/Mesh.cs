@@ -21,7 +21,7 @@ namespace ErisLibraries
         public static Mesh SingleTriangle(ColorByte color)
         {
             Vec3[] verts = [new Vec3(0.6f, -0.6f, 0), new Vec3(-0.6f, -0.6f, 0), new Vec3(0, 1f, 0)];
-            IndexTriangle[] triangles = [new IndexTriangle([0,1,2],verts,color)];
+            IndexTriangle[] triangles = [new IndexTriangle([0,2,1],verts,color)];
             return new Mesh(verts, triangles);
         }
         public static Mesh Cube(ColorByte color)
