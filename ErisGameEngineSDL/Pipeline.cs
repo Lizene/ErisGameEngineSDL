@@ -221,7 +221,9 @@ namespace ErisGameEngineSDL
         }
         void RasterizeTriangle(Vec3[] apices, ColorByte color, Vec3 preCalculatedNormal)
         {
+            // Get diffuse lighting color
             ColorByte diffuse = color * Math.Clamp((Vec3.Dot(preCalculatedNormal, globalLightDir) + 1) / 2, ambientLighting, 1);
+
             // Camera-relative vertices
             Vec3 aRel = apices[0];
             Vec3 bRel = apices[1];
@@ -243,37 +245,10 @@ namespace ErisGameEngineSDL
             Vec3 b = new Vec3(bProj.x, bProj.y, bRel.z);
             Vec3 c = new Vec3(cProj.x, cProj.y, cRel.z);
 
-            // Optimal find triangle bounding rectangle
-            /*
-            int startX, endX, startY, endY;
-            startX = endX = a.x; 
-            startY = endY = a.y;
-            
-            if (b.x < startX) startX = b.x;
-            if (b.x > endX) endX = b.x;
-            if (c.x < startX) startX = c.x;
-            if (c.x > endX) endX = c.x;
-            
-            if (b.y < startY) startY = b.y;
-            if (b.y > endY) endY = b.y;
-            if (c.y < startY) startY = c.y;
-            if (c.y > endY) endY = c.y;
-            */
-
-            //Find centroid of the 3D triangle and set triangle color based on projected screen position and depth
-            /*
-            Vec3 centroid3d = ITriangle.Centroid(apices);
-            Vec2int centroidProj = Project(centroid3d);
-            byte color_r = (byte)(255 * centroidProj.x / (float)targetResolution.x);
-            byte color_g = (byte)(255 * centroidProj.y / (float)targetResolution.y);
-            byte color_b = (byte)(255*Math.Clamp(1f - centroid3d.z / camera.farClipPlaneDistance, 0, 1f));
-            ColorByte posColor = new ColorByte(color_r, color_g, color_b);
-            */
-            //My methods involve taking the vertex with the different y value,
-            //taking the vectors from that vertex to the flat left and right vertices,
-            //and multiplying them by the y-progress to get the start x and end x for the x-row.
-
-            //Algorithm for rasterizing a projected triangle with a flat top side or flat bottom side
+            // My algorithm for rasterizing a projected triangle with a flat top side or flat bottom side
+            // My algorithm involves taking the vertex with the different y value,
+            // taking the vectors from that vertex to the flat left and right vertices,
+            // and multiplying them by the y-progress to get the start x and end x for the x-row.
             void RasterizeFlatTriangle(Vec3 flatleft, Vec3 flatright, Vec3 peak, bool isFlatTop)
             {
                 //Imagine vectors going from the peak vertex to the flat left and flat right vertices
@@ -371,130 +346,6 @@ namespace ErisGameEngineSDL
                     }
                 }
             }
-            /*
-            {
-                
-                float xDiffL = topleft.x - bottom.x;
-                float xDiffR = topright.x - bottom.x;
-                float zDiffL = topleft.z - bottom.z;
-                float zDiffR = topright.z - bottom.z;
-                int yPixelStart = (int)bottom.y;
-                if (yPixelStart == -1) yPixelStart++;
-                int yPixelDiff = (int)topleft.y - yPixelStart;
-                float yFloatDiffL = topleft.y - bottom.y;
-                float yFloatDiffR = topright.y - bottom.y;
-                if (yPixelDiff <= 0) Debug.Fail("yPixelDiff should always be positive");
-                bool isTopLeft = xDiffL > 0;
-
-                for (int j = 0; j <= yPixelDiff; j++)
-                {
-                    int yPixelCurrent = yPixelStart + j; //Screen pixelheight of the current row
-                    if (yPixelCurrent == targetResolution.y) continue;
-                    // "continue" because it should cause an error when it's higher than the resolution y,
-                    // because that means there's something wrong with the code.
-                    // It can skip if and only if it's exactly the same as the resolution y
-                    float pixelFloatYDist = yPixelCurrent + 0.5f - bottom.y;
-
-                    float yFloatProgressL = pixelFloatYDist / yFloatDiffL;
-                    float yFloatProgressR = pixelFloatYDist / yFloatDiffR;
-                    //Get percent progress of the y-loop and multiply by
-                    //x differences to the left and right to get the start and end x of the row
-                    RasterizeRow(true, bottom, isTopLeft, xDiffL, xDiffR, zDiffL, zDiffR, yPixelCurrent, yFloatProgressL, yFloatProgressR);
-                }
-            }*/
-
-            //Method for rasterizing a projected triangle with a flat bottom
-            //Same as FlatTop but instead of going from bottom to top, this one goes from top to bottom
-            /*
-            {
-                float xDiffL = bottomleft.x - top.x;
-                float xDiffR = bottomright.x - top.x;
-                float zDiffL = bottomleft.z - top.z;
-                float zDiffR = bottomright.z - top.z;
-                int yPixelStart = (int)top.y;
-                if (yPixelStart == -1) yPixelStart++;
-                int yPixelDiff = yPixelStart - (int)bottomleft.y;
-                float yFloatDiffL = top.y - bottomleft.y;
-                float yFloatDiffR = top.y - bottomright.y;
-                if (yPixelDiff <= 0) Debug.Fail("yPixelDiff should always be positive");
-                bool isTopLeft = xDiffL < 0;
-                for (int j = 0; j <= yPixelDiff; j++)
-                {
-                    int yPixelCurrent = yPixelStart - j;
-                    if (yPixelCurrent == targetResolution.y) continue;
-                    float pixelFloatYDist = top.y - (yPixelCurrent + 0.5f);
-                    
-                    float yFloatProgressL = pixelFloatYDist / yFloatDiffL;
-                    float yFloatProgressR = pixelFloatYDist / yFloatDiffR;
-                    RasterizeRow(false, top, isTopLeft, xDiffL, xDiffR, zDiffL, zDiffR, yPixelCurrent, yFloatProgressL, yFloatProgressR);
-                }
-            }*/
-
-            //Method for rasterizing a row in the forloop of the triangle y-value.
-            //I differentiated this from FlatTop() and FlatBottom() because it's the same in both
-            /*
-            void RasterizeRow(bool isFlatTop, Vec3 thirdVertex, bool isTopLeft, float xDiffL, float xDiffR, float zDiffL, float zDiffR, int yPixelCurrent, float yProgressL, float yProgressR)
-            {
-
-                float rowStartFloat = thirdVertex.x + 
-                    (yProgressL > 1f  ? xDiffL :
-                    yProgressL < 0 ? 0 :
-                    (yProgressL * xDiffL));
-                int rowStart = (int)rowStartFloat;
-                if (!isTopLeft) rowStart++;
-                //if (rowStart < 0 && rowStart >= -5) rowStart = 0;
-                float rowEndFloat = thirdVertex.x + 
-                    (yProgressR > 1f ? xDiffR :
-                    yProgressR < 0 ? 0 :
-                    (yProgressR * xDiffR));
-                int rowEnd = (int)rowEndFloat;
-                if (rowEnd == targetResolution.x + 1) rowEnd--;
-                int rowXDiff = rowEnd - rowStart;
-                float zStart, zEnd;
-                //If row is one pixel wide
-                if (rowXDiff == 0)
-                {
-                    if (rowStart == targetResolution.x || yPixelCurrent == targetResolution.y) return;
-                    float pixelFloatX = rowStart + 0.5f;
-                    float depth;
-                    float pixelFloatY = yPixelCurrent + 0.5f;
-                    if (!isFlatTop && pixelFloatY >= thirdVertex.y
-                        || isFlatTop && pixelFloatY <= thirdVertex.y) depth = thirdVertex.z;
-                    else if (pixelFloatX < rowStartFloat) depth = thirdVertex.z + yProgressL * zDiffL;
-                    else if (pixelFloatX > rowEndFloat) depth = thirdVertex.z + yProgressR * zDiffR;
-                    else
-                    {
-                        zStart = thirdVertex.z + yProgressL * zDiffL;
-                        zEnd = thirdVertex.z + yProgressR * zDiffR;
-                        float lerpT = (pixelFloatX - rowStartFloat) / (rowEndFloat - rowStartFloat);
-                        depth = zStart + lerpT * (zEnd - zStart);
-                    }
-                    DepthWrite(rowStart, yPixelCurrent, depth, diffuse, preCalculatedNormal);
-                    return;
-                }
-                //Get interpolated z value by interpolating both the bottom to top vectors by the y-progress value,
-                //then interpolating between those by the x-progress value
-                zStart = thirdVertex.z + (yProgressL * zDiffL);
-                zEnd = thirdVertex.z + (yProgressR * zDiffR);
-                float zRowDiff = zEnd - zStart;
-                float rowXFloatDiff = rowEndFloat - rowStartFloat;
-                for (int i = 0; i <= rowXDiff; i++)
-                {
-                    int currentPixelX = rowStart + i;
-                    if (currentPixelX == targetResolution.x) continue; // Same reason for "continue" here
-                    float currentFloatX = currentPixelX+0.5f;
-                    float depth;
-                    if (i == 0 && currentFloatX < rowStartFloat) depth = zStart;
-                    else if (i == rowXDiff && currentFloatX > rowEndFloat) depth = zEnd;
-                    else
-                    {
-                        float lerpT = (currentFloatX - rowStartFloat) / rowXFloatDiff;
-                        depth = zStart + (lerpT * zRowDiff);
-                    }
-                    
-                    DepthWrite(currentPixelX, yPixelCurrent, depth, diffuse, preCalculatedNormal);
-                }
-            }*/
 
             //Method for determining order of vertices when two of the y-values are the same
             void Flat(Vec3 flat1, Vec3 flat2, Vec3 peak)
@@ -514,6 +365,7 @@ namespace ErisGameEngineSDL
                 }
                 RasterizeFlatTriangle(flatleft, flatright, peak, isFlatTop);
             }
+
             //Method for dividing a triangle into a flat bottom triangle and a flat top triangle by the middle vertex line
             void DivideTriangle()
             {
@@ -553,6 +405,7 @@ namespace ErisGameEngineSDL
                 RasterizeFlatTriangle(midLeft, midRight, top, false);
                 RasterizeFlatTriangle(midLeft, midRight, bot, true);
             }
+
             //Check for a flat top or bottom, if doens't have,
             //divide into two triangles with a flat bottom and flat top
             if ((aPixel.y == bPixel.y && aPixel.y == cPixel.y) || (aPixel.x == bPixel.x && aPixel.x == cPixel.x)) 
@@ -561,6 +414,16 @@ namespace ErisGameEngineSDL
             else if (aPixel.y == cPixel.y) Flat(a, c, b);
             else if (bPixel.y == cPixel.y) Flat(b, c, a);
             else DivideTriangle();
+        }
+        //Find centroid of the 3D triangle and set triangle color based on projected screen position and depth
+        ColorByte GetTrianglePositionColor(Vec3[] cameraSpaceApices)
+        {
+            Vec3 centroid3d = ITriangle.Centroid(cameraSpaceApices);
+            Vec2int centroidProj = Project(centroid3d);
+            byte color_r = (byte)(255 * centroidProj.x / (float)targetResolution.x);
+            byte color_g = (byte)(255 * centroidProj.y / (float)targetResolution.y);
+            byte color_b = (byte)(255 * Math.Clamp(1f - centroid3d.z / camera.farClipPlaneDistance, 0, 1f));
+            return new ColorByte(color_r, color_g, color_b);
         }
         void RasterizeSegments(int[] segments, Vec3[] cameraSpaceVertices)
         {
