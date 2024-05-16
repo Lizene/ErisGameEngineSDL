@@ -60,7 +60,7 @@ namespace ErisGameEngineSDL
                 Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
                 //Frustum culling
-                if (!worldSpaceFrustum.IsGameObjectPartlyInside(go)) continue;
+                if (!worldSpaceFrustum.IsObjectPartlyInside(go)) continue;
 
                 int[] segments = GetSegmentsFromIndexTriangles(go.transformedMesh.triangles);
                 FrustumClipAndRasterizeSegments(segments, cameraSpaceVertices);
@@ -86,11 +86,11 @@ namespace ErisGameEngineSDL
                 Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
                 //Frustum culling
-                if (!worldSpaceFrustum.IsGameObjectPartlyInside(go)) continue;
+                if (!worldSpaceFrustum.IsObjectPartlyInside(go)) continue;
 
                 //If gameobject completely inside frustum, render triangle segments as they are.
                 IndexTriangle[] indexTriangles = go.transformedMesh.triangles;
-                if (worldSpaceFrustum.IsGameObjectCompletelyInside(go))
+                if (worldSpaceFrustum.IsObjectCompletelyInside(go))
                 {
                     RasterizeSegments(GetSegmentsFromIndexTriangles(indexTriangles), cameraSpaceVertices);
                     continue;
@@ -128,7 +128,7 @@ namespace ErisGameEngineSDL
                 Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
                 //Frustum culling
-                if (!worldSpaceFrustum.IsGameObjectPartlyInside(go)) continue;
+                if (!worldSpaceFrustum.IsObjectPartlyInside(go)) continue;
 
                 //If gameobject completely inside frustum, render triangles as they are.
                 IndexTriangle[] indexTriangles = go.transformedMesh.triangles;
@@ -142,7 +142,7 @@ namespace ErisGameEngineSDL
                             || Vec3.Dot(apices[2], cameraSpaceNormal) >= 0;
                 }
                 IndexTriangle[] cameraFacingTriangles = indexTriangles.Where(t => isFacingCamera(t)).ToArray();
-                if (worldSpaceFrustum.IsGameObjectCompletelyInside(go))
+                if (worldSpaceFrustum.IsObjectCompletelyInside(go))
                 {
                     //Rasterize triangles to frame buffer
                     foreach (IndexTriangle triangle in cameraFacingTriangles)
@@ -224,11 +224,13 @@ namespace ErisGameEngineSDL
             // Get diffuse lighting color
             ColorByte diffuse = color * Math.Clamp((Vec3.Dot(preCalculatedNormal, globalLightDir) + 1) / 2, ambientLighting, 1);
 
-            // Camera-relative vertices
+            // Camera-relative apices
             Vec3 aRel = apices[0];
             Vec3 bRel = apices[1];
             Vec3 cRel = apices[2];
-            
+            if (aRel.z < 0 || aRel.z < 0 || aRel.z < 0) Console.WriteLine("Depth is negative");
+
+
             // Projected vertices (not rounded to pixels)
             Vec2 aProj = ProjectFloat(aRel);
             Vec2 bProj = ProjectFloat(bRel);
@@ -251,27 +253,23 @@ namespace ErisGameEngineSDL
             // and multiplying them by the y-progress to get the start x and end x for the x-row.
             void RasterizeFlatTriangle(Vec3 flatleft, Vec3 flatright, Vec3 peak, bool isFlatTop)
             {
-                //Imagine vectors going from the peak vertex to the flat left and flat right vertices
-                //Get the vectors' x-values, 
-                float xDiffL = flatleft.x - peak.x;
-                float xDiffR = flatright.x - peak.x;
-                float zDiffL = flatleft.z - peak.z;
-                float zDiffR = flatright.z - peak.z;
-                int yPixelStart = (int)peak.y;
-                if (yPixelStart == -1) yPixelStart++;
-                int pixelEnd = (int)flatleft.y;
-                int yPixelDiff = Math.Abs(pixelEnd - yPixelStart);
-                float yFloatDiffL = flatleft.y - peak.y;
-                float yFloatDiffR = flatright.y - peak.y;
-                bool isTopLeft;
-                if (isFlatTop) isTopLeft = xDiffL > 0;
-                else
+                //Take vectors going from the peak vertex to the flat left and flat right vertices
+                Vec3 LDiff = flatleft - peak;
+                Vec3 RDiff = flatright - peak;
+                float peakZReci = 1 / peak.z;
+                float leftZReci = 1 / flatleft.z;
+                float rightZReci = 1 / flatright.z;
+                float LzReciDiff = leftZReci - peakZReci;
+                float RzReciDiff = rightZReci - peakZReci;
+                if (!isFlatTop)
                 {
-                    yFloatDiffL = -yFloatDiffL;
-                    yFloatDiffR = -yFloatDiffR;
-                    isTopLeft = xDiffL < 0;
+                    LDiff.y = -LDiff.y; // Y difference should be absolute in this algorithm
+                    RDiff.y = -RDiff.y;
                 }
-                for (int j = 0; j <= yPixelDiff; j++)
+                int yPixelStart = (int)peak.y;
+                int yPixelDiff = Math.Abs((int)flatleft.y - yPixelStart);
+                //Start loop from the second pixel row if it starts from -1
+                for (int j = yPixelStart == -1 ? 1 : 0; j <= yPixelDiff; j++)
                 {
                     int yPixelCurrent = yPixelStart + (isFlatTop ? j : -j); //Screen pixelheight of the current row
                     // "continue" because it should cause an error when it's higher than the resolution y,
@@ -283,65 +281,54 @@ namespace ErisGameEngineSDL
                     //x differences to the left and right to get the start and end x of the row
                     float pixelFloatYDist = peak.y - (yPixelCurrent + 0.5f);
                     if (isFlatTop) pixelFloatYDist = -pixelFloatYDist;
-                    float yProgressL = pixelFloatYDist / yFloatDiffL;
-                    float yProgressR = pixelFloatYDist / yFloatDiffR;
+                    float yProgressL = pixelFloatYDist / LDiff.y;
+                    float yProgressR = pixelFloatYDist / RDiff.y;
 
                     //Determine start and end values for the pixel row.
                     //Also determine the real float value of the row start and end for accurate interpolation
                     float rowStartFloat = peak.x +
-                    (yProgressL > 1f ? xDiffL :
-                    yProgressL < 0 ? 0 :
-                    (yProgressL * xDiffL));
+                        (yProgressL > 1f ? LDiff.x :
+                        yProgressL < 0 ? 0 :
+                        (yProgressL * LDiff.x));
                     int rowStart = (int)rowStartFloat;
-                    if (!isTopLeft) rowStart++; //Top left pixels get priority
                     float rowEndFloat = peak.x +
-                        (yProgressR > 1f ? xDiffR :
+                        (yProgressR > 1f ? RDiff.x :
                         yProgressR < 0 ? 0 :
-                        (yProgressR * xDiffR));
+                        (yProgressR * RDiff.x));
                     int rowEnd = (int)rowEndFloat;
                     if (rowEnd == targetResolution.x + 1) rowEnd--;
                     int rowXDiff = rowEnd - rowStart;
-                    float zStart, zEnd;
-                    //If row is one pixel wide
-                    if (rowXDiff == 0)
-                    {
-                        if (rowStart == targetResolution.x) continue;
-                        float pixelFloatX = rowStart + 0.5f;
-                        float depth;
-                        float pixelFloatY = yPixelCurrent + 0.5f;
-                        if (!isFlatTop && pixelFloatY >= peak.y
-                            || isFlatTop && pixelFloatY <= peak.y) depth = peak.z;
-                        else if (pixelFloatX < rowStartFloat) depth = peak.z + yProgressL * zDiffL;
-                        else if (pixelFloatX > rowEndFloat) depth = peak.z + yProgressR * zDiffR;
-                        else
-                        {
-                            zStart = peak.z + yProgressL * zDiffL;
-                            zEnd = peak.z + yProgressR * zDiffR;
-                            float lerpT = (pixelFloatX - rowStartFloat) / (rowEndFloat - rowStartFloat);
-                            depth = zStart + lerpT * (zEnd - zStart);
-                        }
-                        DepthWrite(rowStart, yPixelCurrent, depth, diffuse, preCalculatedNormal);
-                        continue;
-                    }
+
                     // Get interpolated z value by interpolating both the flatvertex-to-peak vectors by 
                     // the sided y-progress values, then interpolating between those by the x-progress value
-                    zStart = peak.z + (yProgressL * zDiffL);
-                    zEnd = peak.z + (yProgressR * zDiffR);
+                    // The depth interpolation is done with its reciprocal for perspective correct interpolation
+                    float zStart = peak.z + (yProgressL * LDiff.z);
+                    float zStartReci = peakZReci + (yProgressL * LzReciDiff);
+                    float zEnd = peak.z + (yProgressR * RDiff.z);
+                    float zEndReci = peakZReci + (yProgressR * RzReciDiff);
                     float zRowDiff = zEnd - zStart;
+                    float zReciRowDiff = zEndReci - zStartReci;
                     float rowXFloatDiff = rowEndFloat - rowStartFloat;
+                    
                     for (int i = 0; i <= rowXDiff; i++)
                     {
                         int currentPixelX = rowStart + i;
                         if (currentPixelX == targetResolution.x) continue; // Same reason for "continue" here
                         float currentFloatX = currentPixelX + 0.5f;
-                        float depth;
-                        if (i == 0 && currentFloatX < rowStartFloat) depth = zStart;
-                        else if (i == rowXDiff && currentFloatX > rowEndFloat) depth = zEnd;
+                        float depthReci;
+                        if (rowXFloatDiff == 0)
+                        {
+                            depthReci = peak.z;
+                        }
+                        else if (i == 0 && currentFloatX < rowStartFloat) depthReci = zStartReci;
+                        else if (i == rowXDiff && currentFloatX > rowEndFloat) depthReci = zEndReci;
                         else
                         {
                             float lerpT = (currentFloatX - rowStartFloat) / rowXFloatDiff;
-                            depth = zStart + (lerpT * zRowDiff);
+                            float interpZ = zStart + (lerpT * zRowDiff);
+                            depthReci = zStartReci + (lerpT * zReciRowDiff);
                         }
+                        float depth = 1 / depthReci;
                         DepthWrite(currentPixelX, yPixelCurrent, depth, diffuse, preCalculatedNormal);
                     }
                 }
@@ -391,11 +378,12 @@ namespace ErisGameEngineSDL
 
                 //Divide into two triangles with a horizontal line going from the middle vertex
                 //to an interpolated division point on the opposing triangle side of the middle vertex.
-                //The division point also has an interpolated depth value.
+                //The division point also has an reciprocally interpolated depth value.
                 float lerpT = (mid.y - top.y) / (bot.y - top.y);
                 float divPointX = (int)bot.x == (int)top.x ? bot.x : top.x + ((bot.x - top.x) * lerpT);
-                float divPointDepth = top.z + ((bot.z - top.z) * lerpT);
-                Vec3 divPoint = new Vec3(divPointX, mid.y, divPointDepth);
+                float topZreci = 1 / top.z;
+                float divPointDepthReci = topZreci + ((1/bot.z - topZreci) * lerpT);
+                Vec3 divPoint = new Vec3(divPointX, mid.y, 1/divPointDepthReci);
 
                 //Sort mid and divPoint by x-value
                 Vec3 midLeft, midRight;
@@ -409,13 +397,13 @@ namespace ErisGameEngineSDL
             //Check for a flat top or bottom, if doens't have,
             //divide into two triangles with a flat bottom and flat top
             if ((aPixel.y == bPixel.y && aPixel.y == cPixel.y) || (aPixel.x == bPixel.x && aPixel.x == cPixel.x)) 
-                return; //If no y- or x- difference, don't draw the triangle
+                return; //If no y- or x- pixel difference, don't draw the triangle
             if (aPixel.y == bPixel.y) Flat(a, b, c);
             else if (aPixel.y == cPixel.y) Flat(a, c, b);
             else if (bPixel.y == cPixel.y) Flat(b, c, a);
             else DivideTriangle();
         }
-        //Find centroid of the 3D triangle and set triangle color based on projected screen position and depth
+        //Find centroid of the 3D triangle and get triangle color based on projected screen position and depth
         ColorByte GetTrianglePositionColor(Vec3[] cameraSpaceApices)
         {
             Vec3 centroid3d = ITriangle.Centroid(cameraSpaceApices);
@@ -477,8 +465,8 @@ namespace ErisGameEngineSDL
         Vec2 ProjectFloat(Vec3 v) //Camera-relative position to unrounded resolution coordinates
         {
             Vec2 framePos = new Vec2(
-                   (targetResolution.x * ((camera.viewPlaneDistance * v.x / (viewPortSize.x * v.z)) + 0.5f)),
-                   (targetResolution.y * ((camera.viewPlaneDistance * v.y / (viewPortSize.y * v.z)) + 0.5f)));
+                   targetResolution.x * ((camera.viewPlaneDistance * v.x / (viewPortSize.x * v.z)) + 0.5f),
+                   targetResolution.y * ((camera.viewPlaneDistance * v.y / (viewPortSize.y * v.z)) + 0.5f));
             return framePos;
         }
     }

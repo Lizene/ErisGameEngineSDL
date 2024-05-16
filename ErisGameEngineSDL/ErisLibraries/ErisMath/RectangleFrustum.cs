@@ -13,8 +13,10 @@ namespace ErisMath
 {
     internal class RectangleFrustum
     {
-        public Plane[] planes;
-        Vec3[][] diagonalLines;
+        public Plane[] planes; //Array containing the frustum bounding planes
+        Vec3[][] diagonalLines; //Lines going from the corners of the near plane square to the corners of the far plane square
+
+        //Properties to fetch a specific frustum plane
         public Plane near { get { return planes[0]; } }
         public Plane far { get { return planes[1]; } }
         public Plane up { get { return planes[2]; } }
@@ -23,9 +25,12 @@ namespace ErisMath
         public Plane right { get { return planes[5]; } }
         public RectangleFrustum(Vec2 viewPortSize, float viewPortDistance, float nearClipPlaneDistance, float farClipPlaneDistance)
         {
+            //I may be using the word viewport wrong, but what I mean by it here
+            //is the square slice of the frustum made by the projection plane
             Vec3 viewPortCenter = Vec3.forward * viewPortDistance;
             Vec2 halfViewPortSize = viewPortSize / 2;
 
+            //Define frustum planes from parameters
             Plane near = new Plane(Vec3.forward * nearClipPlaneDistance, Vec3.back);
             Plane far = new Plane(Vec3.forward * farClipPlaneDistance, Vec3.forward);
             Vec3 pointUp = viewPortCenter + Vec3.up * halfViewPortSize.y;
@@ -38,6 +43,7 @@ namespace ErisMath
             Plane right = new Plane(pointRight, Vec3.Cross(pointRight, Vec3.down).normalized());
             planes = [near, far, up, down, left, right];
 
+            //Define far plane square corner points
             float farToViewRatio = farClipPlaneDistance / viewPortDistance;
             Vec2 halfFarSize = new Vec2(farToViewRatio* halfViewPortSize.x, farToViewRatio*halfViewPortSize.y);
 
@@ -48,6 +54,7 @@ namespace ErisMath
                 new Vec3(-halfFarSize.x,-halfFarSize.y,farClipPlaneDistance),
             ];
 
+            //Define near plane square corner points
             float nearToViewRatio = nearClipPlaneDistance / viewPortDistance;
             Vec2 halfNearSize = new Vec2(nearToViewRatio * halfViewPortSize.x, nearToViewRatio * halfViewPortSize.y);
 
@@ -58,6 +65,7 @@ namespace ErisMath
                 new Vec3(-halfNearSize.x,-halfNearSize.y,nearClipPlaneDistance),
             ];
 
+            //Define diagonal lines
             diagonalLines = [
                 [nearSquarePoints[0], farSquarePoints[0]],
                 [nearSquarePoints[1], farSquarePoints[1]],
@@ -65,7 +73,7 @@ namespace ErisMath
                 [nearSquarePoints[3], farSquarePoints[3]],
             ];
         }
-        public bool IsPointInside(Vec3 point)
+        public bool IsPointInside(Vec3 point) //Is a point in 3D space inside the frustum?
         {
             bool isInside = true;
             foreach (Plane plane in planes)
@@ -74,7 +82,8 @@ namespace ErisMath
             }
             return isInside;
         }
-        public bool IsGameObjectPartlyInside(Shaped3DObject go)
+        //Determine if an object is only partially inside this frustum, using its radius.
+        public bool IsObjectPartlyInside(Shaped3DObject go)
         {
             bool isInside = true;
             foreach (Plane plane in planes)
@@ -84,7 +93,8 @@ namespace ErisMath
             }
             return isInside;
         }
-        public bool IsGameObjectCompletelyInside(Shaped3DObject go)
+        //Determine if an object is completely inside this frustum, using its radius.
+        public bool IsObjectCompletelyInside(Shaped3DObject go) 
         {
             bool isInside = true;
             foreach (Plane plane in planes)
@@ -94,6 +104,7 @@ namespace ErisMath
             }
             return isInside;
         }
+        //Get all intersection points a segment makes with the planes of the frustum
         public Vec3[] SegmentIntersectionPoints(Vec3 A, Vec3 B)
         {
             List<Vec3> intersectionPoints = new List<Vec3>();
@@ -104,7 +115,7 @@ namespace ErisMath
             }
             return intersectionPoints.ToArray();
         }
-        bool IsIntersectionPointInsideFrustum(Vec3 p, int planeIdx) //Is a plane intersection point inside all the other planes of the frustum
+        bool IsIntersectionPointInsideFrustum(Vec3 p, int planeIdx) //Is a plane intersection point inside all the other planes of the frustum than the given plane
         {
             bool isInside = true;
             for (int i = 0; i < 6; i++)
@@ -114,7 +125,8 @@ namespace ErisMath
             }
             return isInside;
         }
-        public Vec3 FrustumIntersectionPoint(Vec3 A, Vec3 B) //Assumes there is exactly one
+        //Get the intersection point that lies on the frustum, when known that there is one
+        public Vec3 FrustumIntersectionPoint(Vec3 A, Vec3 B)
         {
             for (int i = 0; i < 6; i++)
             {
@@ -126,7 +138,7 @@ namespace ErisMath
             Debug.Fail("Couldn't find intersection point");
             return Vec3.zero;
         }
-        public Tuple<Vec3,int> FrustumIntersectionPointAndPlane(Vec3 A, Vec3 B) //Assumes there is exactly one, also returns index of intersected plane
+        public Tuple<Vec3,int> FrustumIntersectionPointAndPlane(Vec3 A, Vec3 B) //also returns index of intersected plane
         {
             for (int i = 0; i < 6; i++)
             {
@@ -138,7 +150,7 @@ namespace ErisMath
             Debug.Fail("Couldn't find intersection point");
             return new Tuple<Vec3, int>(Vec3.zero,0);
         }
-        public Tuple<Vec3,Vec3>? ClipSegment(Vec3 A, Vec3 B)
+        public Tuple<Vec3,Vec3>? ClipSegment(Vec3 A, Vec3 B) //Clip a segment to the frustum and return the new segment
         {
             List<Vec3> frustumIntersectionPoints = new List<Vec3>();
             int intersectingPlaneIndex = -1;
@@ -161,6 +173,7 @@ namespace ErisMath
             }
             else return new Tuple<Vec3, Vec3>(frustumIntersectionPoints[0], frustumIntersectionPoints[1]);
         }
+        // Get the intersection of a frustum diagonal line between two adjacent planes and a plane defined by a triangle
         Vec3? FrustumCornerIntersectionWithPlane(int[] frustumPlaneIndices, ref Plane p)
         {
             if (frustumPlaneIndices.Contains(0) || frustumPlaneIndices.Contains(1))
@@ -169,6 +182,7 @@ namespace ErisMath
             }
             else
             {
+                //A weird way to find if the two planes are adjacent
                 int product = frustumPlaneIndices[0] * frustumPlaneIndices[1];
                 if (product == 6 || product == 20)
                 {
@@ -186,6 +200,8 @@ namespace ErisMath
                 return p.LineIntersectionPoint(line[0], line[1]);
             }
         }
+
+        //Algorithm for clipping triangles to the frustum
         public ITriangle[] ClipTriangles(Vec3[] vertices, IndexTriangle[] triangles)
         {
             List<ITriangle> clippedTriangles = [];

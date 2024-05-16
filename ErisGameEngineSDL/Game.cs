@@ -72,8 +72,9 @@ namespace ErisGameEngineSDL
         static readonly float cameraMoveSpeed = 10f;
 
         //Scene
-        Shaped3DObject[] sceneGameObjects = [];
-        Shaped3DObject[] twoTriangles = [];
+        Shaped3DObject[] mainScene = [];
+        Shaped3DObject[] twoTrianglesScene = [];
+        bool sceneSwitch = false;
 
         //Drawing
         delegate uint[,] DrawMethodDelegate(Shaped3DObject[] objects);
@@ -199,7 +200,7 @@ namespace ErisGameEngineSDL
         void CreateObjects()
         {
             Vec3 pillarScale = new Vec3(0.7f, 5, 0.7f);
-            sceneGameObjects =
+            mainScene =
             [
                 //Make floor
                 Shaped3DObject.CreateCube(new Vec3(0,-2,0), new Vec3(11,1,11), ColorByte.Random()),
@@ -237,14 +238,14 @@ namespace ErisGameEngineSDL
                 Shaped3DObject.CreateCube(new Vec3(-6.1f,0,4), new Vec3(1,2,1), ColorByte.Random())
                 //Make 
             ];
-            sceneGameObjects[2].isRotating = true;
-            sceneGameObjects[3].isMorphing = true;
-            sceneGameObjects[4].isRotating = true;
-            sceneGameObjects[4].isMorphing = true;
+            mainScene[2].isRotating = true;
+            mainScene[3].isMorphing = true;
+            mainScene[4].isRotating = true;
+            mainScene[4].isMorphing = true;
             //sceneGameObjects[15].isRotating = true;
 
 
-            twoTriangles = [
+            twoTrianglesScene = [
                 new Shaped3DObject(
                     Mesh.SingleTriangle(ColorByte.BLUE),
                     new Transform(Vec3.zero)),
@@ -283,6 +284,8 @@ namespace ErisGameEngineSDL
                                 udComposite--; break;
                             case SDL.SDL_Keycode.SDLK_SPACE:
                                 udComposite++; break;
+                            case SDL.SDL_Keycode.SDLK_TAB:
+                                sceneSwitch = !sceneSwitch; break;
                             case SDL.SDL_Keycode.SDLK_1:
                                 drawModeNum = 1; SwitchDrawMethod(); break;
                             case SDL.SDL_Keycode.SDLK_2:
@@ -384,9 +387,10 @@ namespace ErisGameEngineSDL
         }
         void TransformSceneObjects()
         {
+            if (sceneSwitch) return;
             // Rotate Cubes
             float angle = cubeAngleSpeed * deltaTime;
-            foreach (Shaped3DObject go in sceneGameObjects)
+            foreach (Shaped3DObject go in mainScene)
             {
                 if (!go.isRotating) continue;
                 go.transform.Rotate(Quaternion.AngleAxis(angle, cubeRotAxis));
@@ -398,7 +402,7 @@ namespace ErisGameEngineSDL
             */
             // Morph Cubes
             morphPhase += morphSpeed * deltaTime;
-            foreach (Shaped3DObject so in sceneGameObjects)
+            foreach (Shaped3DObject so in mainScene)
             {
                 if (!so.isMorphing) continue;
                 Vec3 newScale = (new Vec3((float)Math.Sin(morphPhase),
@@ -509,7 +513,7 @@ namespace ErisGameEngineSDL
         }
         void Draw()
         {
-            uint[,] frameBuffer = drawMethod(sceneGameObjects);
+            uint[,] frameBuffer = drawMethod(sceneSwitch ? twoTrianglesScene : mainScene);
             DrawFrameBuffer(frameBuffer);
             
             if (drawModeNum != 4) return;
