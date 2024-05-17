@@ -41,6 +41,8 @@ namespace ErisMath
 
         public static float Angle(Vec3 a, Vec3 b)
             => (float)Math.Acos(Dot(a, b) / (a.magnitude() * b.magnitude())); //Formula for calculating unsigned angle between two 3D vectors
+        public static Vec3 Lerp(Vec3 a, Vec3 b, float t) //Linear interpolation between two Vec3 points
+            => a + ((b - a) * t);
         public void RotateAroundAxis(float angle, Vec3 axis)
         {
             this = Quaternion.RotateVector(this, Quaternion.AngleAxis(angle, axis)); //Rotate vector by quaternion formed from angle and axis.

@@ -15,13 +15,13 @@ namespace ErisGameEngineSDL
 {
     internal class Pipeline
     {
-        Vec2 viewPortSize, halfViewPortSize;
-        float viewPortDistance;
         public uint[,] frameBuffer;
         float[,] depthBuffer;
-        static readonly ushort[] triangleSegmentIndices = [0, 1, 1, 2, 2, 0];
 
         public Vec2int targetResolution;
+        Vec2 viewPortSize;
+        static readonly ushort[] triangleSegmentIndices = [0, 1, 1, 2, 2, 0];
+
         Camera camera;
         Transform cameraTransform;
         Quaternion cameraRotation, invertedCameraRotation;
@@ -40,7 +40,6 @@ namespace ErisGameEngineSDL
             depthBuffer = new float[targetResolution.x, targetResolution.y];
 
             viewPortSize = camera.viewPortSize;
-            halfViewPortSize = viewPortSize / 2;
             cameraTransform = camera.transform;
             worldSpaceFrustum = camera.worldSpaceFrustum;
             cameraSpaceFrustum = camera.cameraSpaceFrustum;
@@ -318,7 +317,7 @@ namespace ErisGameEngineSDL
                         float depthReci;
                         if (rowXFloatDiff == 0)
                         {
-                            depthReci = peak.z;
+                            depthReci = 1/peak.z;
                         }
                         else if (i == 0 && currentFloatX < rowStartFloat) depthReci = zStartReci;
                         else if (i == rowXDiff && currentFloatX > rowEndFloat) depthReci = zEndReci;
