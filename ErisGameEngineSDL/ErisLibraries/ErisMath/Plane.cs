@@ -22,6 +22,7 @@ namespace ErisMath
         public bool IsPointOnPositiveSide(Vec3 p) => Vec3.Dot(normal, p) + d >= 0;
         public bool IsPointWithRadiusOnNegativeSide(Vec3 p, float r) => Vec3.Dot(normal, p) + d - r < 0; //Used for frustum culling (Is object completely outside?)
         public bool IsPointWithRadiusOnPositiveSide(Vec3 p, float r) => Vec3.Dot(normal, p) + d + r >= 0; //Used for frustum culling (Is object completely inside?)
+        public bool IsPointOn(Vec3 p) => Math.Abs(Vec3.Dot(normal, p) + d) < 0.001f;
 
         public bool SegmentIntersects(Vec3 A, Vec3 B) //Does the segment from A to B intersect with the plane?
             => IsPointOnPositiveSide(A) != IsPointOnPositiveSide(B);

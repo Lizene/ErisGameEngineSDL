@@ -40,7 +40,7 @@ namespace ErisGameEngineSDL
         private nint renderTexture;
         private SDL.SDL_Rect renderRect;
         Vec2int windowSize, screenSize, halfScreenSize, targetResolution;
-        readonly int resolutionDownScale = 2;
+        readonly int resolutionDownScale = 1;
         float resolutionRatio;
         [AllowNull] RenderPipeline pipeline;
 
@@ -51,7 +51,7 @@ namespace ErisGameEngineSDL
         int udComposite;
         float udRot, lrRot;
         Vec2 mouseDelta;
-        const float mouseSensitivity = 0.5f;
+        readonly float mouseSensitivity = 0.5f;
 
         //FPS limit
         ushort fpsLimit = 60000;
@@ -62,7 +62,7 @@ namespace ErisGameEngineSDL
 
         //Cube transformation
         Vec3 cubeRotAxis = new Vec3(0.3f, 1, 0);
-        const float cubeAngleSpeed = 50, morphSpeed = 0.5f;
+        readonly float cubeAngleSpeed = 50, morphSpeed = 0.5f;
         float morphPhase = 0f;
 
 
@@ -508,7 +508,7 @@ namespace ErisGameEngineSDL
             SDL.SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 1);
             SDL.SDL_RenderDrawPoint(renderer, x, targetResolution.y - 1 - y);
             SDL.SDL_RenderPresent(renderer);
-            Thread.Sleep(4);
+            //Thread.Sleep(4);
         }
         void SwitchDrawMethod()
         {

@@ -151,11 +151,13 @@ namespace ErisGameEngineSDL
                 //Take vectors going from the peak vertex to the flat left and flat right vertices
                 Vec3 LDiff = flatleft - peak;
                 Vec3 RDiff = flatright - peak;
+
+                //Take reciprocals for perspective-correct depth interpolation
                 float peakZReci = 1 / peak.z;
                 float leftZReci = 1 / flatleft.z;
                 float rightZReci = 1 / flatright.z;
-                float LzReciDiff = leftZReci - peakZReci;
-                float RzReciDiff = rightZReci - peakZReci;
+                float LzReciDiff = leftZReci - peakZReci; //Left depth reciprocal difference
+                float RzReciDiff = rightZReci - peakZReci; //Right depth reciprocal difference
                 if (!isFlatTop)
                 {
                     LDiff.y = -LDiff.y; // Y difference should be absolute in this algorithm
@@ -185,12 +187,13 @@ namespace ErisGameEngineSDL
                         (yProgressL > 1f ? LDiff.x :
                         yProgressL < 0 ? 0 :
                         (yProgressL * LDiff.x));
-                    int rowStart = (int)rowStartFloat;
+                    int rowStart = (int)Math.Ceiling(rowStartFloat);
+                    if (rowStart == -1) rowStart++;
                     float rowEndFloat = peak.x +
                         (yProgressR > 1f ? RDiff.x :
                         yProgressR < 0 ? 0 :
                         (yProgressR * RDiff.x));
-                    int rowEnd = (int)rowEndFloat;
+                    int rowEnd = (int)Math.Floor(rowEndFloat);
                     if (rowEnd == targetResolution.x + 1) rowEnd--;
                     int rowXDiff = rowEnd - rowStart;
 
