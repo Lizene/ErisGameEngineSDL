@@ -15,20 +15,24 @@ namespace ErisGameEngineSDL
 {
     internal class Pipeline
     {
+        // All methods and algorithms required to render and rasterize a scene of shaped 3D objects.
+        // The render pipeline outputs a frame buffer to the Game class.
         public uint[,] frameBuffer;
         float[,] depthBuffer;
 
-        public Vec2int targetResolution;
-        Vec2 viewPortSize;
+        //The size of the frame buffer matrix, pixels will be upscaled later in Game class.
+        public Vec2int targetResolution; 
+        Vec2 viewPortSize; //The size of the resolution in world space
         static readonly ushort[] triangleSegmentIndices = [0, 1, 1, 2, 2, 0];
 
+        //The currently rendering camera (As of now having only one camera functional)
         Camera camera;
         Transform cameraTransform;
+        RectangleFrustum worldSpaceFrustum, cameraSpaceFrustum;
+        //These are updated on every render method call
         Quaternion cameraRotation, invertedCameraRotation;
 
-        RectangleFrustum worldSpaceFrustum, cameraSpaceFrustum;
-
-        float ambientLighting = 0.4f;
+        readonly float ambientLighting = 0.5f;
         public Vec3 globalLightDir = -Vec3.one;
 
         public Pipeline(Vec2int targetResolution, Camera camera) 
