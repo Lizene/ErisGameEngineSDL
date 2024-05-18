@@ -14,10 +14,21 @@ namespace ErisGameEngineSDL.ErisLibraries
 {
     internal class Shaped3DObject
     {
+        //Class for storing a scene object with a 3D mesh and transform
+        
+        //mesh is the original shape with no transformations applied,
+        //transformed mesh has the rotation and scale applied and is what gets rendered
         public Mesh mesh, transformedMesh;
+
+        //Vertices with scale applied, for optimization
         public Vec3[] scaledVertices;
         public Transform transform { get; }
+
+        //The longest magnitude of a vertex of this object's mesh,
+        //used in frustum culling
         public float radius;
+
+        //Flags to make an object rotate or size-morph
         public bool isRotating = false, isMorphing = false;
 
         public Shaped3DObject(Mesh mesh, Transform transform) 
@@ -41,9 +52,9 @@ namespace ErisGameEngineSDL.ErisLibraries
         
         public Shaped3DObject Copy()
         {
-            Shaped3DObject go = new Shaped3DObject(mesh, transform.Copy());
-            go.transform.SetGameObjectReference(go);
-            return go;
+            Shaped3DObject so = new Shaped3DObject(mesh, transform.Copy());
+            so.transform.SetGameObjectReference(so);
+            return so;
         }
         void SetRadius()
         {

@@ -5,7 +5,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.ExceptionServices;
+using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -84,24 +86,24 @@ namespace ErisMath
         }
 
         //Determine if an object is only partially inside this frustum, using its radius.
-        public bool IsObjectPartlyInside(Shaped3DObject go)
+        public bool IsObjectPartlyInside(Shaped3DObject so)
         {
             bool isInside = true;
             foreach (Plane plane in planes)
             {
-                if (!plane.IsPointWithRadiusOnNegativeSide(go.transform.position, go.radius))
+                if (!plane.IsPointWithRadiusOnNegativeSide(so.transform.position, so.radius))
                     isInside = false;
             }
             return isInside;
         }
 
         //Determine if an object is completely inside this frustum, using its radius.
-        public bool IsObjectCompletelyInside(Shaped3DObject go) 
+        public bool IsObjectCompletelyInside(Shaped3DObject so) 
         {
             bool isInside = true;
             foreach (Plane plane in planes)
             {
-                if (plane.IsPointWithRadiusOnPositiveSide(go.transform.position, go.radius))
+                if (plane.IsPointWithRadiusOnPositiveSide(so.transform.position, so.radius))
                     isInside = false;
             }
             return isInside;
@@ -126,7 +128,7 @@ namespace ErisMath
             {
                 if (!planes[i].SegmentIntersects(A, B)) continue;
                 Vec3 intersectionPoint = planes[i].LineIntersectionPoint(A, B);
-                if (IsIntersectionPointInsideFrustum(intersectionPoint, i))
+                if (IsPointInsideOtherPlanesThan(intersectionPoint, i))
                 {
                     intersectionPoints.Add(planes[i].LineIntersectionPoint(A, B));
                 }
@@ -134,7 +136,7 @@ namespace ErisMath
             return intersectionPoints.ToArray();
         }
         //Is a plane intersection point inside all the other planes of the frustum than the given plane?
-        bool IsIntersectionPointInsideFrustum(Vec3 p, int planeIdx) 
+        bool IsPointInsideOtherPlanesThan(Vec3 p, int planeIdx) 
         {
             bool isInside = true;
             for (int i = 0; i < 6; i++)
@@ -152,7 +154,7 @@ namespace ErisMath
             {
                 if (!planes[i].SegmentIntersects(A, B)) continue;
                 Vec3 intersectionPoint = planes[i].LineIntersectionPoint(A, B);
-                if (IsIntersectionPointInsideFrustum(intersectionPoint, i))
+                if (IsPointInsideOtherPlanesThan(intersectionPoint, i))
                     return intersectionPoint;
             }
             Debug.Fail("Couldn't find intersection point");
@@ -165,7 +167,7 @@ namespace ErisMath
             {
                 if (!planes[i].SegmentIntersects(A, B)) continue;
                 Vec3 intersectionPoint = planes[i].LineIntersectionPoint(A, B);
-                if (IsIntersectionPointInsideFrustum(intersectionPoint, i))
+                if (IsPointInsideOtherPlanesThan(intersectionPoint, i))
                     return new Tuple<Vec3,int>(intersectionPoint,i);
             }
             Debug.Fail("Couldn't find intersection point");
@@ -181,13 +183,12 @@ namespace ErisMath
             {
                 if (!planes[i].SegmentIntersects(A, B)) continue;
                 Vec3 intersectionPoint = planes[i].LineIntersectionPoint(A, B);
-                if (IsIntersectionPointInsideFrustum(intersectionPoint, i))
+                if (IsPointInsideOtherPlanesThan(intersectionPoint, i))
                 {
                     intersectionPoints.Add(intersectionPoint);
                     intersectionPlanes.Add(i);
                 }
             }
-            Debug.Fail("Couldn't find intersection point");
             return new Tuple<Vec3[], int[]>(intersectionPoints.ToArray(), intersectionPlanes.ToArray());
         }
 
@@ -201,7 +202,7 @@ namespace ErisMath
             {
                 if (!planes[i].SegmentIntersects(A, B)) continue;
                 Vec3 planeIntersectionPoint = planes[i].LineIntersectionPoint(A, B);
-                if (!IsIntersectionPointInsideFrustum(planeIntersectionPoint, i)) continue;
+                if (!IsPointInsideOtherPlanesThan(planeIntersectionPoint, i)) continue;
                 frustumIntersectionPoints.Add(planeIntersectionPoint);
                 if (frustumIntersectionPoints.Count == 1) intersectingPlaneIndex = i;
                 else break;
@@ -218,28 +219,32 @@ namespace ErisMath
         }
 
         // Get the intersection of a frustum diagonal line between two adjacent planes and a plane defined by a triangle
-        Vec3? FrustumCornerIntersectionWithPlane(int[] frustumPlaneIndices, ref Plane p)
+        Vec3? FrustumCornerIntersectionWithPlane(int[] planeIndices, ref Plane p)
         {
-            if (frustumPlaneIndices.Contains(0) || frustumPlaneIndices.Contains(1))
+            if (planeIndices.Contains(0) || planeIndices.Contains(1))
             {
                 return null;
             }
             else
             {
-                //A weird way to find if the two planes are adjacent
-                int product = frustumPlaneIndices[0] * frustumPlaneIndices[1];
-                if (product == 6 || product == 20)
+                int lineNum;
+                if (planeIndices.Contains(2) && planeIndices.Contains(4))
                 {
-                    return null;
+                    lineNum = 0;
                 }
-                int lineNum = 0;
-                switch (product)
+                else if (planeIndices.Contains(2) && planeIndices.Contains(5))
                 {
-                    case 8: lineNum = 0; break;
-                    case 10: lineNum = 1; break;
-                    case 15: lineNum = 2; break;
-                    case 12: lineNum = 3; break;
+                    lineNum = 1;
                 }
+                else if (planeIndices.Contains(3) && planeIndices.Contains(5))
+                {
+                    lineNum = 2;
+                }
+                else if (planeIndices.Contains(3) && planeIndices.Contains(4))
+                {
+                    lineNum = 3;
+                }
+                else return null;
                 Vec3[] line = diagonalLines[lineNum];
                 return p.LineIntersectionPoint(line[0], line[1]);
             }
@@ -256,7 +261,7 @@ namespace ErisMath
             }
             void ClipTriangle(IndexTriangle triangle)
             {
-                
+                Plane? trianglePlaneNullable = null; //The plane defined by the triangle
                 List<int> indicesInside = [];
                 List<int> indicesOutside = [];
                 foreach (int index in triangle.indices)
@@ -270,16 +275,15 @@ namespace ErisMath
                 int countApicesInside = indicesInside.Count;
                 switch (countApicesInside)
                 {
-                    
                     case 0:
                         ZeroApicesInside();
                         break;
-
                     case 1:
                         OneApexInside(vertices[indicesInside[0]],vertices[indicesOutside[0]], vertices[indicesOutside[1]]); 
                         break;
                     case 2:
-                        TwoApicesInside(vertices[indicesInside[0]], vertices[indicesInside[1]], vertices[indicesOutside[0]]); break;
+                        TwoApicesInside(vertices[indicesInside[0]], vertices[indicesInside[1]], vertices[indicesOutside[0]]); 
+                        break;
                     case 3:
                         clippedTriangles.Add(triangle); break;
                 }
@@ -330,92 +334,141 @@ namespace ErisMath
                     var intersectionResult2 = FrustumIntersectionPointAndPlane(insideApex, outsideApex2);
                     Vec3 intersectionPoint1 = intersectionResult1.Item1;
                     Vec3 intersectionPoint2 = intersectionResult2.Item1;
+                    int intSectPlane1 = intersectionResult1.Item2;
+                    int intSectPlane2 = intersectionResult2.Item2;
+                    int[] IntSectPlanes = [intSectPlane1, intSectPlane2];
+
+                    //If intersections were with near of far plane, skip for now
+                    if (IntSectPlanes.Contains(0) || IntSectPlanes.Contains(1)) return;
+
                     clippedTriangles.Add(new ApexTriangle(
                         [insideApex, intersectionPoint1, intersectionPoint2],
                         triangle.normal, triangle.color));
 
-                    int planeIdx1 = intersectionResult1.Item2;
-                    int planeIdx2 = intersectionResult2.Item2;
-                    int[] planeIndexes = [planeIdx1, planeIdx2];
+                    if (intSectPlane1 == intSectPlane2) return;
+
                     // If intersections were with different planes:
-                    if (planeIdx1 != planeIdx2)
+                    if (intSectPlane1 < 2 || intSectPlane2 < 2) return; //Skip this part if either of them is the near or far plane.
+
+                    // If line connecting outside apices intersects with frustum, cut the shape to that line
+                    var outsideSegmentFrustumIntersections = FrustumIntersectionPointsAndPlanes(outsideApex1,outsideApex2);
+                    Vec3[] OSFIntersectionPoints = outsideSegmentFrustumIntersections.Item1;
+                    
+
+                    //See if inside to outside apices intersections were on opposing planes
+                    bool firstPairIsOppositePlanes = 
+                        (IntSectPlanes.Contains(2) && IntSectPlanes.Contains(3))
+                        || (IntSectPlanes.Contains(4) && IntSectPlanes.Contains(5));
+
+                    if (OSFIntersectionPoints.Length == 0)
                     {
-                        if (planeIdx1 < 2 || planeIdx2 < 2) return; //Skip this part if either of them is the near or far plane.
-
-                        // If line connecting outside apices intersects with frustum, cut the shape to that line
-
-                        Vec3 outsideLineIntersection1 = planes[planeIdx1].LineIntersectionPoint(outsideApex1, outsideApex2);
-                        Vec3 outsideLineIntersection2 = planes[planeIdx2].LineIntersectionPoint(outsideApex1, outsideApex2);
-                        if (IsIntersectionPointInsideFrustum(outsideLineIntersection1, planeIdx1))
+                        //If didn't intersect with frustum
+                        if (firstPairIsOppositePlanes)
                         {
-                            
-                            if (IsIntersectionPointInsideFrustum(outsideLineIntersection2, planeIdx2))//Floating point error fix
+                            int midPlane;
+                            if (IntSectPlanes.Contains(2))
                             {
-                                if ((planeIndexes.Contains(2) && planeIndexes.Contains(3))
-                                    || (planeIndexes.Contains(4) && planeIndexes.Contains(5)))
-                                {
-                                    //If intersection planes are opposing and outsideLineIntersection connection intersects any other plane,
-                                    //cut triangle into two by insidepoint and another point inside the frustum on the outside connection
-                                    int[] planesToCheck = Enumerable.Range(0, 6).Where(i => !(i == planeIdx1 || i == planeIdx2)).ToArray();
-
-                                    //If an intersection was not found:
-                                    clippedTriangles.AddRange([
-                                                new ApexTriangle(
-                                                    [intersectionPoint1, outsideLineIntersection2, intersectionPoint2],
-                                                    triangle.normal, triangle.color),
-                                                new ApexTriangle(
-                                                    [intersectionPoint1, outsideLineIntersection1, outsideLineIntersection2],
-                                                    triangle.normal, triangle.color)
-                                        ]);
-                                    return;
-                                }
-                                else return;
+                                midPlane = !(planes[5].IsPointOnPositiveSide(outsideApex1) 
+                                    || planes[5].IsPointOnPositiveSide(outsideApex2)) ? 4 : 5;
                             }
                             else
                             {
-                                Vec3 OpposingSidePoint = Vec3.Lerp(outsideLineIntersection1, outsideLineIntersection2, 0.5f);
-                                //If opposing side point is outside this plane, do one apex inside, otherwise do two apices inside
-
-                                if (IsPointInside(OpposingSidePoint))
-                                {
-                                    OneApexInside(insideApex, outsideApex1, OpposingSidePoint);
-                                    OneApexInside(insideApex, OpposingSidePoint, outsideApex2);
-                                }
-                                else
-                                {
-                                    TwoApicesInside(insideApex, OpposingSidePoint, outsideApex1);
-                                    TwoApicesInside(insideApex, OpposingSidePoint, outsideApex2);
-                                }
+                                midPlane = !(planes[3].IsPointOnPositiveSide(outsideApex1)
+                                    || planes[3].IsPointOnPositiveSide(outsideApex2)) ? 2 : 3;
                             }
-                            
+                            //Double corner quad
+                            if (trianglePlaneNullable is null) trianglePlaneNullable = new Plane(insideApex, triangle.normal);
+                            Plane trianglePlane = (Plane)trianglePlaneNullable;
+                            Vec3? cornerPointNullable1 = FrustumCornerIntersectionWithPlane([intSectPlane1, midPlane], ref trianglePlane);
+                            Vec3? cornerPointNullable2 = FrustumCornerIntersectionWithPlane([midPlane, intSectPlane2], ref trianglePlane);
+                            if (cornerPointNullable1 is not null && cornerPointNullable2 is not null)
+                            {
+                                Vec3 cornerPoint1 = (Vec3)cornerPointNullable1;
+                                Vec3 cornerPoint2 = (Vec3)cornerPointNullable2;
+                                Quad([intersectionPoint1, cornerPoint1, intersectionPoint2, cornerPoint2]);
+                            }
                         }
                         else
                         {
-                            Vec3 OpposingSidePoint = Vec3.Lerp(outsideLineIntersection1, outsideLineIntersection2, 0.5f);
-                            //If opposing side point is outside this plane, do one apex inside, otherwise do two apices inside
-
-                            if (IsPointInside(OpposingSidePoint))
-                            {
-                                OneApexInside(insideApex, outsideApex1, OpposingSidePoint);
-                                OneApexInside(insideApex, OpposingSidePoint, outsideApex2);
-                            }
-                            else
-                            {
-                                TwoApicesInside(insideApex, OpposingSidePoint, outsideApex1);
-                                TwoApicesInside(insideApex, OpposingSidePoint, outsideApex2);
-                            }
-                        }
-                        // Else, add frustum corner triangle
-                        Plane trianglePlane = new Plane(insideApex, triangle.normal);
-                        Vec3? cornerPointNullable = FrustumCornerIntersectionWithPlane([planeIdx1, planeIdx2], ref trianglePlane);
-                        if (cornerPointNullable is not null)
-                        {
-                            Vec3 cornerPoint = (Vec3)cornerPointNullable;
-                            clippedTriangles.Add(new ApexTriangle(
-                                [intersectionPoint1, cornerPoint, intersectionPoint2],
-                                triangle.normal, triangle.color));
+                            FrustumCornerTriangle(intSectPlane1, intSectPlane2, intersectionPoint1, intersectionPoint2);
                         }
                     }
+                    else
+                    {
+                        //If did intersect with frustum twice (once is not possible)
+
+                        //Order intersection points by which is closer to which outside apex
+                        int[] OSFPlanes = outsideSegmentFrustumIntersections.Item2;
+                        if ((OSFIntersectionPoints[0] - outsideApex1).magnitude()
+                            > (OSFIntersectionPoints[1] - outsideApex1).magnitude())
+                        {
+                            //Swap points and planes
+                            Vec3 temp1 = OSFIntersectionPoints[0];
+                            OSFIntersectionPoints[0] = OSFIntersectionPoints[1];
+                            OSFIntersectionPoints[1] = temp1;
+
+                            int temp2 = OSFPlanes[0];
+                            OSFPlanes[0] = OSFPlanes[1];
+                            OSFPlanes[1] = temp2;
+                        }
+
+                        Vec3 OSFIntersectionPoint1 = OSFIntersectionPoints[0];
+                        Vec3 OSFIntersectionPoint2 = OSFIntersectionPoints[1];
+                        int OSFIntersectionPlane1 = OSFPlanes[0];
+                        int OSFIntersectionPlane2 = OSFPlanes[1];
+                        
+                        Quad([intersectionPoint1, intersectionPoint2, OSFIntersectionPoint1, OSFIntersectionPoint2]);
+                        if (firstPairIsOppositePlanes)
+                        {
+                            if (OSFIntersectionPlane1 != intSectPlane1)
+                            {
+                                FrustumCornerTriangle(OSFIntersectionPlane1, intSectPlane1, OSFIntersectionPoint1, intersectionPoint1);
+                            }
+                            else if (OSFIntersectionPlane2 != intSectPlane2)
+                            {
+                                FrustumCornerTriangle(OSFIntersectionPlane2, intSectPlane2, OSFIntersectionPoint2, intersectionPoint2);
+                            }
+                        }
+                    }
+                    
+                    /*
+                    if ((planeIndexes.Contains(2) && planeIndexes.Contains(3))
+                        || (planeIndexes.Contains(4) && planeIndexes.Contains(5)))
+                    {
+                        //If intersection planes are opposing and outsideLineIntersection connection intersects any other plane,
+                        //cut triangle into two by insidepoint and a point on the opposing side
+                        int[] planesToCheck = Enumerable.Range(0, 6).Where(i => !(i == planeIdx1 || i == planeIdx2)).ToArray();
+
+                        //If an intersection was not found:
+                        clippedTriangles.AddRange([
+                                    new ApexTriangle(
+                                        [intersectionPoint1, outsideLineIntersection2, intersectionPoint2],
+                                        triangle.normal, triangle.color),
+                                    new ApexTriangle(
+                                        [intersectionPoint1, outsideLineIntersection1, outsideLineIntersection2],
+                                        triangle.normal, triangle.color)
+                            ]);
+                        return;
+                    }
+                    */
+                    
+                    /*
+                    else
+                    {
+                        Vec3 OpposingSidePoint = Vec3.Lerp(outsideLineIntersection1, outsideLineIntersection2, 0.5f);
+                        //If opposing side point is outside this plane, do one apex inside, otherwise do two apices inside
+
+                        if (IsPointInside(OpposingSidePoint))
+                        {
+                            OneApexInside(insideApex, outsideApex1, OpposingSidePoint);
+                            OneApexInside(insideApex, OpposingSidePoint, outsideApex2);
+                        }
+                        else
+                        {
+                            TwoApicesInside(insideApex, OpposingSidePoint, outsideApex1);
+                            TwoApicesInside(insideApex, OpposingSidePoint, outsideApex2);
+                        }
+                    }*/
                 }
                 void TwoApicesInside(Vec3 insideApex1, Vec3 insideApex2, Vec3 outsideApex)
                 {
@@ -447,6 +500,30 @@ namespace ErisMath
                                 triangle.normal, triangle.color));
                         }
                     }
+                }
+                void FrustumCornerTriangle(int cornerPlane1, int cornerPlane2, Vec3 apex1, Vec3 apex2)
+                {
+                    if (trianglePlaneNullable is null) trianglePlaneNullable = new Plane(apex1, triangle.normal);
+                    Plane trianglePlane = (Plane)trianglePlaneNullable;
+                    Vec3? cornerPointNullable = FrustumCornerIntersectionWithPlane([cornerPlane1, cornerPlane2], ref trianglePlane);
+                    if (cornerPointNullable is not null)
+                    {
+                        Vec3 cornerPoint = (Vec3)cornerPointNullable;
+                        clippedTriangles.Add(new ApexTriangle(
+                            [apex1, cornerPoint, apex2],
+                            triangle.normal, triangle.color));
+                    }
+                }
+                void Quad(Vec3[] points)
+                {
+                    clippedTriangles.AddRange([
+                        new ApexTriangle(
+                                    [points[0], points[3], points[2]],
+                                    triangle.normal, triangle.color),
+                                new ApexTriangle(
+                                    [points[0], points[1], points[3]],
+                                    triangle.normal, triangle.color)
+                        ]);
                 }
             }
             for (int i = 0; i < triangles.Length; i++)

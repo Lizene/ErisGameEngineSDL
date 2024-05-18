@@ -42,7 +42,7 @@ namespace ErisGameEngineSDL
         Vec2int windowSize, screenSize, halfScreenSize, targetResolution;
         readonly int resolutionDownScale = 2;
         float resolutionRatio;
-        [AllowNull] Pipeline pipeline;
+        [AllowNull] RenderPipeline pipeline;
 
 
         //Input
@@ -91,6 +91,7 @@ namespace ErisGameEngineSDL
             else Debug.Fail("There cannot be more than one instance of Game");
             instance = this;
         }
+        //Is called once when the game starts
         public void Start()
         {
             InitWindow();
@@ -99,6 +100,7 @@ namespace ErisGameEngineSDL
             CreateObjects();
             SwitchDrawMethod();
         }
+        //Is called each time the last update finishes
         public void Update()
         {
             ulong frameStartTime = SDL.SDL_GetTicks64(); //Get frame start time
@@ -134,6 +136,7 @@ namespace ErisGameEngineSDL
             SDL.SDL_DisplayMode displayMode;
             SDL.SDL_GetCurrentDisplayMode(0, out displayMode);
 
+            //Set sizes
             screenSize = new Vec2int(displayMode.w, displayMode.h);
             halfScreenSize = screenSize / 2;
             windowSize = halfScreenSize;
@@ -142,6 +145,7 @@ namespace ErisGameEngineSDL
             resXtimesY = targetResolution.x * targetResolution.y;
             Vec2int windowPos = halfScreenSize - windowSize / 2;
 
+            //Create SDL objects: window, renderer, surfaces, rendertexture, render rectangle
             window = SDL.SDL_CreateWindow(
                 "Eris Game Engine", windowPos.x, windowPos.y, windowSize.x, windowSize.y,
                 SDL.SDL_WindowFlags.SDL_WINDOW_OPENGL | 
@@ -152,8 +156,11 @@ namespace ErisGameEngineSDL
             renderTexture = SDL.SDL_CreateTexture(renderer, SDL.SDL_PIXELFORMAT_RGB888, 1, targetResolution.x,targetResolution.y);
             renderRect = new SDL.SDL_Rect();
             renderRect.x = 0; renderRect.y = 0; renderRect.w = targetResolution.x; renderRect.h = targetResolution.y;
+
+            //Downscale effect
             SDL.SDL_RenderSetScale(renderer, resolutionDownScale, resolutionDownScale);
 
+            //Create camera and render pipeline objects
             Vec2 viewPortSize = new Vec2();
             viewPortSize.y = 1f;
             viewPortSize.x = viewPortSize.y * resolutionRatio;
@@ -162,26 +169,8 @@ namespace ErisGameEngineSDL
             float farClipPlaneDistance = 50f;
             float nearClipPlaneDistance = 0.1f;
             camera = new Camera(cameraTransform, FOV, nearClipPlaneDistance, farClipPlaneDistance, viewPortSize);
-            pipeline = new Pipeline(targetResolution, camera);
+            pipeline = new RenderPipeline(targetResolution, camera);
             ResizeWindow();
-            /*
-            GL = SDL.SDL_GL_CreateContext(window);
-            if (GL == IntPtr.Zero)
-            {
-                Debug.Fail("OpenGL context could not be created");
-                Quit(1);
-            }
-
-            
-            SDL.SDL_GL_SetAttribute(SDL.SDL_GLattr.SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-            SDL.SDL_GL_SetAttribute(SDL.SDL_GLattr.SDL_GL_CONTEXT_MINOR_VERSION, 6);
-            SDL.SDL_GL_SetAttribute(SDL.SDL_GLattr.SDL_GL_CONTEXT_PROFILE_MASK, 2);
-            SDL.SDL_GL_SetAttribute(SDL.SDL_GLattr.SDL_GL_RED_SIZE, 8);
-            SDL.SDL_GL_SetAttribute(SDL.SDL_GLattr.SDL_GL_GREEN_SIZE, 8);
-            SDL.SDL_GL_SetAttribute(SDL.SDL_GLattr.SDL_GL_BLUE_SIZE, 8);
-            SDL.SDL_GL_SetAttribute(SDL.SDL_GLattr.SDL_GL_ALPHA_SIZE, 0);
-            SDL.SDL_GL_SetAttribute(SDL.SDL_GLattr.SDL_GL_DEPTH_SIZE, 24);
-            SDL.SDL_GL_SetAttribute(SDL.SDL_GLattr.SDL_GL_DOUBLEBUFFER, 1);*/
         }
         void InitTime()
         {
@@ -231,20 +220,19 @@ namespace ErisGameEngineSDL
                 Shaped3DObject.CreateCube(new Vec3(-9,4f,10), new Vec3(0.3f, 5, 0.7f), ColorByte.Random()),
 
                 // Make windmill
-                Shaped3DObject.CreateCube(new Vec3(0,16f,-24), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
-                //Shaped3DObject.CreateCube(new Vec3(0,16f,-24), Quaternion.Euler(0,0,90), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(0,16f,-24f), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
+                Shaped3DObject.CreateCube(new Vec3(0,16f,-24.05f), Quaternion.Euler(0,0,90), new Vec3(1.3f, 8, 0.3f), ColorByte.Random()),
                 Shaped3DObject.CreateCube(new Vec3(0,9f,-26.5f), new Vec3(2, 10, 2), ColorByte.Random()),
 
                 Shaped3DObject.CreateCube(new Vec3(-6.1f,0,4), new Vec3(1,2,1), ColorByte.Random())
-                //Make 
             ];
+            //Make cubes rotate and change scale
             mainScene[2].isRotating = true;
             mainScene[3].isMorphing = true;
             mainScene[4].isRotating = true;
             mainScene[4].isMorphing = true;
-            //sceneGameObjects[15].isRotating = true;
 
-
+            //Another scene with just two triangles for debugging
             twoTrianglesScene = [
                 new Shaped3DObject(
                     Mesh.SingleTriangle(ColorByte.BLUE),
@@ -257,15 +245,18 @@ namespace ErisGameEngineSDL
 
         void Events()
         {
+            //SDL event system
             mouseDelta = Vec2.zero;
             bool resized = false;
             while (SDL.SDL_PollEvent(out SDLEvent) != 0)
             {
                 switch (SDLEvent.type)
                 {
+                    //The X on the top right corner of the window
                     case SDL.SDL_EventType.SDL_QUIT:
                         quit = true;
                         break;
+                    //Key input
                     case SDL.SDL_EventType.SDL_KEYDOWN:
                         if (SDLEvent.key.repeat != 0 || !inputEnabled) break;
                         switch (SDLEvent.key.keysym.sym)
@@ -314,6 +305,7 @@ namespace ErisGameEngineSDL
                                 udComposite--; break;
                         }
                         break;
+                    //Mouse input
                     case SDL.SDL_EventType.SDL_MOUSEMOTION:
                         mouseDelta = new Vec2(SDLEvent.motion.xrel, SDLEvent.motion.yrel);
                         break;
@@ -328,6 +320,7 @@ namespace ErisGameEngineSDL
                                 } break;
                         }
                         break;
+                    //Window resizing
                     case SDL.SDL_EventType.SDL_WINDOWEVENT:
                         switch (SDLEvent.window.windowEvent)
                         {
@@ -343,6 +336,7 @@ namespace ErisGameEngineSDL
         }
         void EscapeWindow()
         {
+            //Set input modes when escaping from the window
             SDL.SDL_SetWindowKeyboardGrab(window, sdlfalse);
             SDL.SDL_SetWindowMouseGrab(window, sdlfalse);
             SDL.SDL_SetRelativeMouseMode(sdlfalse);
@@ -351,6 +345,7 @@ namespace ErisGameEngineSDL
         }
         void FocusWindow()
         {
+            //When clicked on the window again
             SDL.SDL_SetWindowKeyboardGrab(window, sdltrue);
             SDL.SDL_SetWindowMouseGrab(window, sdltrue);
             SDL.SDL_SetRelativeMouseMode(sdltrue);
@@ -359,6 +354,8 @@ namespace ErisGameEngineSDL
         }
         void ResizeWindow()
         {
+            //Make a box with the same aspect ratio to draw on within the window bounds
+            //Currently not functional
             int windowWidth, windowHeight;
             SDL.SDL_GetWindowSize(window, out windowWidth, out windowHeight);
             windowSize = new Vec2int(windowWidth, windowHeight);
@@ -390,60 +387,69 @@ namespace ErisGameEngineSDL
             if (sceneSwitch) return;
             // Rotate Cubes
             float angle = cubeAngleSpeed * deltaTime;
-            foreach (Shaped3DObject go in mainScene)
+            foreach (Shaped3DObject so in mainScene)
             {
-                if (!go.isRotating) continue;
-                go.transform.Rotate(Quaternion.AngleAxis(angle, cubeRotAxis));
+                if (!so.isRotating) continue;
+                so.transform.Rotate(Quaternion.AngleAxis(angle, cubeRotAxis));
             }
             // Rotate windmill
-            /*
-            sceneGameObjects[12].transform.Rotate(Quaternion.AngleAxis(angle, Vec3.forward));
-            sceneGameObjects[13].transform.Rotate(Quaternion.AngleAxis(angle, Vec3.forward));
-            */
+            mainScene[12].transform.Rotate(Quaternion.AngleAxis(angle, Vec3.forward));
+            mainScene[13].transform.Rotate(Quaternion.AngleAxis(angle, Vec3.forward));
             // Morph Cubes
             morphPhase += morphSpeed * deltaTime;
             foreach (Shaped3DObject so in mainScene)
             {
                 if (!so.isMorphing) continue;
-                Vec3 newScale = (new Vec3((float)Math.Sin(morphPhase),
-                    (float)Math.Sin(morphPhase + Constants.rad120),
-                    (float)Math.Sin(morphPhase + 2*Constants.rad120))
-                    );
+                Vec3 newScale =
+                    new Vec3((float)Math.Sin(morphPhase) / 2f,
+                    (float)Math.Sin(morphPhase + Constants.rad120) / 2f,
+                    (float)Math.Sin(morphPhase + 2 * Constants.rad120) / 2f
+                    ) + Vec3.one;
                 so.transform.SetScale(newScale);
             }
         }
         void TransformCamera()
         {
             if (!inputEnabled) return;
+            //Movement axes
             Vec3 right = cameraTransform.right;
             Vec3 up = Vec3.up;
             Vec3 forward = Vec3.Cross(right, up);
+
+            //Input vector
             Vec3 inputVec = new Vec3(wasdComposite.x, udComposite, wasdComposite.y).normalized();
+            //Movement vector
             Vec3 moveDir = (inputVec.x * right + inputVec.y * up + inputVec.z * forward).normalized();
             if (moveDir.magnitude() > 0.01f)
-                camera.Move(moveDir * cameraMoveSpeed * deltaTime);
+                camera.Move(moveDir * cameraMoveSpeed * deltaTime); //Multiply by camera movement speed and deltaTime
 
+            //Rotation
             if (Math.Abs(mouseDelta.x) > 0.1f || Math.Abs(mouseDelta.y) > 0.1f)
             {
+                //Left-right rotation
                 lrRot += mouseDelta.x * mouseSensitivity;
                 lrRot %= 360;
+                //Up-down rotation
                 udRot += mouseDelta.y * mouseSensitivity;
-                udRot = Math.Clamp(udRot, -89f, 89f);
+                //Can't make backflips or frontflips with the camera
+                udRot = Math.Clamp(udRot, -89f, 89f); 
                 Quaternion camRot = Quaternion.Euler(udRot,lrRot,0);
                 camera.SetRotation(camRot);
             }
         }
         void TransformLight()
         {
+            //Rotate global light direction used in diffuse lighting
             float yRotation = 25 * deltaTime;
             pipeline.globalLightDir = Quaternion.RotateVector(pipeline.globalLightDir, Quaternion.Euler(0, yRotation));
         }
         void DrawClear()
         {
+            //Clear screen to draw the next frame, not needed with frame buffers
             SDL.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 1);
             SDL.SDL_RenderClear(renderer);
             /*
-            //Draw rect to show the area we actually draw on
+            // Draw rect to show the area we actually draw on (currently not functional)
             SDL.SDL_Rect rect = new SDL.SDL_Rect();
             rect.w = windowFit.x; rect.h = windowFit.y;
             rect.x = fitStart.x; rect.y = fitStart.y;
@@ -458,6 +464,7 @@ namespace ErisGameEngineSDL
         }
         void DrawFrameBuffer(uint[,] frameBuffer)
         {
+            //Write framebuffer directly into an SDL texture's pixeldata with memory pointers
             SDL.SDL_LockTexture(renderTexture, IntPtr.Zero, out nint pixelsPtr, out int pitch);
             unsafe
             {
@@ -473,6 +480,8 @@ namespace ErisGameEngineSDL
                 }
             }
             SDL.SDL_UnlockTexture(renderTexture);
+
+            //Copy render texture to renderer and render present
             SDL.SDL_RenderCopy(renderer, renderTexture, IntPtr.Zero, IntPtr.Zero);
             SDL.SDL_RenderPresent(renderer);
         }
@@ -484,9 +493,9 @@ namespace ErisGameEngineSDL
                 for (int i = 0; i < targetResolution.x; i++)
                 {
                     uint color = frameBuffer[i,j];
-                    byte r = (byte)((color >> 16) & 0xFF); // Extract the first byte
-                    byte b = (byte)((color >> 8) & 0xFF);  // Extract the second byte
-                    byte g = (byte)(color & 0xFF);         // Extract the third byte
+                    byte r = (byte)((color >> 16) & 0xFF); //Extract bytes from uint
+                    byte b = (byte)((color >> 8) & 0xFF);
+                    byte g = (byte)(color & 0xFF);
                     SDL.SDL_SetRenderDrawColor(renderer, r, g, b, 1);
                     SDL.SDL_RenderDrawPoint(renderer, i, targetResolution.y - 1 - j);
                     SDL.SDL_RenderPresent(renderer);
@@ -495,6 +504,7 @@ namespace ErisGameEngineSDL
         }
         public void DrawPixel(int x, int y, ColorByte color)
         {
+            //Draw a singular pixel, used in pixel by pixel triangle rasterization (debugging)
             SDL.SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 1);
             SDL.SDL_RenderDrawPoint(renderer, x, targetResolution.y - 1 - y);
             SDL.SDL_RenderPresent(renderer);
@@ -502,6 +512,8 @@ namespace ErisGameEngineSDL
         }
         void SwitchDrawMethod()
         {
+            //Store the currently used drawing method to a delegate
+            //that takes the scene and returns a frame buffer
             drawMethod = drawModeNum switch
             {
                 1 => pipeline.RenderTriangleSegmentsNoClip,
@@ -513,15 +525,18 @@ namespace ErisGameEngineSDL
         }
         void Draw()
         {
+            //Draw selected scene with selected draw method
             uint[,] frameBuffer = drawMethod(sceneSwitch ? twoTrianglesScene : mainScene);
             DrawFrameBuffer(frameBuffer);
             
+            //Pixel by pixel triangle drawing mode
             if (drawModeNum != 4) return;
             Thread.Sleep(500);
             DrawClearAndRenderPresent();
         }
         public void Quit(int exitCode)
         {
+            //Called from Program class when quit = true
             SDL.SDL_DestroyWindow(window);
             SDL.SDL_Quit();
             Environment.Exit(exitCode);

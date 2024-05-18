@@ -11,17 +11,19 @@ namespace ErisGameEngineSDL.ErisLibraries
 {
     internal class Transform
     {
+        //Attached to an object,
+        //forms the transform hierarchy (not functional yet),
+        //stores the position, rotation and scale of a shaped 3D object or camera
         public Vec3 position;
         Vec3 _scale;
         public Vec3 scale { get => _scale; set => SetScale(value); }
         Quaternion _rotation;
         public Quaternion rotation { get { return _rotation; } }
-        Shaped3DObject? gameObject;
-        public Transform? parent;
-        public List<Transform> children;
-        public static Transform zero = 
-            new Transform(Vec3.zero, Quaternion.identity, Vec3.one, null);
+        Shaped3DObject? objectAttachedTo;
+        public Transform? parent; //The parent of this node in the hierarchy tree
+        public List<Transform> children; //The children of this node in the hierarchy tree
 
+        //Transform space axes
         Vec3 _forward, _right, _up;
         public Vec3 forward { get { return _forward; } }
         public Vec3 right { get { return _right; } }
@@ -76,7 +78,7 @@ namespace ErisGameEngineSDL.ErisLibraries
             children = new List<Transform>();
             SetParent(null);
         }
-        public void SetGameObjectReference(Shaped3DObject go) { gameObject = go; }
+        public void SetGameObjectReference(Shaped3DObject so) { objectAttachedTo = so; }
         public void SetParent(Transform? newParent)
         {
             if (newParent == null)
@@ -106,12 +108,12 @@ namespace ErisGameEngineSDL.ErisLibraries
         {
             _rotation = q;
             UpdateTransformSpace();
-            if (gameObject != null) gameObject.UpdateTransformedMeshRotation();
+            if (objectAttachedTo != null) objectAttachedTo.UpdateTransformedMeshRotation();
         }
         public void SetScale(Vec3 s)
         {
             _scale = s;
-            if (gameObject != null) gameObject.UpdateTransformedMeshScale();
+            if (objectAttachedTo != null) objectAttachedTo.UpdateTransformedMeshScale();
         }
         void UpdateTransformSpace()
         {

@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace ErisGameEngineSDL
 {
-    internal class Pipeline
+    internal class RenderPipeline
     {
         // All methods and algorithms required to render and rasterize a scene of shaped 3D objects.
         // The render pipeline outputs a frame buffer to the Game class.
@@ -35,44 +35,26 @@ namespace ErisGameEngineSDL
         readonly float ambientLighting = 0.5f;
         public Vec3 globalLightDir = -Vec3.one;
 
-        public Pipeline(Vec2int targetResolution, Camera camera) 
+        public RenderPipeline(Vec2int targetResolution, Camera camera) 
         {
             this.targetResolution = targetResolution;
             this.camera = camera;
-            cameraTransform = camera.transform;
             frameBuffer = new uint[targetResolution.x, targetResolution.y];
             depthBuffer = new float[targetResolution.x, targetResolution.y];
 
+            //Shorthands
+            cameraTransform = camera.transform;
             viewPortSize = camera.viewPortSize;
             cameraTransform = camera.transform;
             worldSpaceFrustum = camera.worldSpaceFrustum;
             cameraSpaceFrustum = camera.cameraSpaceFrustum;
         }
-        //Render only segments of triangles, with only frustum segment clipping.
-        public uint[,] RenderTriangleSegmentsNoClip(Shaped3DObject[] gameObjects)
-        {
-            frameBuffer = new uint[targetResolution.x,targetResolution.y];
-            depthBuffer = new float[targetResolution.x,targetResolution.y];
+        
+        //Methods needed for the main drawing method, drawing triangles:
 
-            cameraRotation = camera.transform.rotation;
-            invertedCameraRotation = cameraRotation.inverted();
-            foreach (Shaped3DObject go in gameObjects)
-            {
-                if (go == null) continue;
-                //transformed vertices from object space to camera space
-                Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
 
-                //Frustum culling
-                if (!worldSpaceFrustum.IsObjectPartlyInside(go)) continue;
-
-                int[] segments = GetSegmentsFromIndexTriangles(go.transformedMesh.triangles);
-                FrustumClipAndRasterizeSegments(segments, cameraSpaceVertices);
-            }
-            return frameBuffer;
-        }
-
-        //Render only segments of triangles, with frustum triangle clipping visible.
-        public uint[,] RenderTriangleSegments(Shaped3DObject[] gameObjects) 
+        //Triangle rendering algorithm
+        public uint[,] RenderTriangles(Shaped3DObject[] sceneObjects)
         {
             //Clear frame buffer and depth buffer
             frameBuffer = new uint[targetResolution.x, targetResolution.y];
@@ -81,61 +63,17 @@ namespace ErisGameEngineSDL
             //Get camera rotation for rotating vertices
             cameraRotation = camera.transform.rotation;
             invertedCameraRotation = cameraRotation.inverted();
-
-            foreach (Shaped3DObject go in gameObjects)
+            foreach (Shaped3DObject so in sceneObjects)
             {
-                if (go == null) continue;
+                if (so == null) continue;
                 //transformed vertices from object space to camera space
-                Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
+                Vec3[] vertices = so.transformedMesh.vertices;
+                Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(so);
 
                 //Frustum culling
-                if (!worldSpaceFrustum.IsObjectPartlyInside(go)) continue;
+                if (!worldSpaceFrustum.IsObjectPartlyInside(so)) continue;
 
-                //If gameobject completely inside frustum, render triangle segments as they are.
-                IndexTriangle[] indexTriangles = go.transformedMesh.triangles;
-                if (worldSpaceFrustum.IsObjectCompletelyInside(go))
-                {
-                    RasterizeSegments(GetSegmentsFromIndexTriangles(indexTriangles), cameraSpaceVertices);
-                    continue;
-                }
-                //Else, clip triangles first
-                ITriangle[] clippedTriangles = cameraSpaceFrustum.ClipTriangles(cameraSpaceVertices, indexTriangles);
-
-                //Rasterize triangles to frame buffer
-                foreach (ITriangle triangle in clippedTriangles)
-                {
-                    Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
-                    Vec3 a = apices[0];
-                    Vec3 b = apices[1];
-                    Vec3 c = apices[2];
-
-                    //Rasterize each segment of the triangle
-                    RasterizeSegment(a, b);
-                    RasterizeSegment(b, c);
-                    RasterizeSegment(c, a);
-                }
-            }
-            return frameBuffer;
-        }
-        public uint[,] RenderTriangles(Shaped3DObject[] gameObjects)
-        {
-            frameBuffer = new uint[targetResolution.x, targetResolution.y];
-            depthBuffer = new float[targetResolution.x, targetResolution.y];
-            cameraRotation = camera.transform.rotation;
-            invertedCameraRotation = cameraRotation.inverted();
-            foreach (Shaped3DObject go in gameObjects)
-            {
-                if (go == null) continue;
-                //transformed vertices from object space to camera space
-                Vec3[] vertices = go.transformedMesh.vertices;
-                Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(go);
-
-                //Frustum culling
-                if (!worldSpaceFrustum.IsObjectPartlyInside(go)) continue;
-
-                //If gameobject completely inside frustum, render triangles as they are.
-                IndexTriangle[] indexTriangles = go.transformedMesh.triangles;
-                Vec3 camPos = camera.transform.position;
+                //Determine whether a triangle is facing the camera
                 bool isFacingCamera(IndexTriangle t)
                 {
                     Vec3[] apices = t.GetApices(cameraSpaceVertices);
@@ -144,8 +82,14 @@ namespace ErisGameEngineSDL
                             || Vec3.Dot(apices[1], cameraSpaceNormal) >= 0
                             || Vec3.Dot(apices[2], cameraSpaceNormal) >= 0;
                 }
+                //Get object triangles
+                IndexTriangle[] indexTriangles = so.transformedMesh.triangles;
+                //Filter out triangles not facing the camera
                 IndexTriangle[] cameraFacingTriangles = indexTriangles.Where(t => isFacingCamera(t)).ToArray();
-                if (worldSpaceFrustum.IsObjectCompletelyInside(go))
+
+                //If gameobject completely inside frustum, render triangles as they are.
+                Vec3 camPos = camera.transform.position;
+                if (worldSpaceFrustum.IsObjectCompletelyInside(so))
                 {
                     //Rasterize triangles to frame buffer
                     foreach (IndexTriangle triangle in cameraFacingTriangles)
@@ -168,60 +112,8 @@ namespace ErisGameEngineSDL
             }
             return frameBuffer;
         }
-        
-        int[] GetSegmentsFromIndexTriangles(IndexTriangle[] triangles)
-        {
-            List<int> segments = new List<int>();
-            foreach (IndexTriangle triangle in triangles)
-            {
-                int[] indices = triangle.indices;
-                int[] triangleSegments = triangleSegmentIndices.Select(i => indices[i]).ToArray();
-                segments.AddRange(triangleSegments);
-            }
-            return segments.ToArray();
-        }
-        Vec3[] ObjectVerticesToCameraSpace(Shaped3DObject go)
-        {
-            Vec3[] vertices = go.transformedMesh.vertices;
-            Vec3 relPos = go.transform.position - cameraTransform.position;
-            Vec3[] verticesRelPos = vertices.Select(v => relPos + v).ToArray();
-            return Quaternion.RotateVectors(verticesRelPos, invertedCameraRotation, cameraRotation);
-        }
-        void DepthWrite(int pixelPosX, int pixelPosY, float depth, ColorByte color, Vec3 normal)
-        {
-            if (depth is float.NaN) Debug.Fail("NAN");
-            float depthBufferValue = depthBuffer[pixelPosX, pixelPosY];
-            if (depthBufferValue == 0 || depth <= depthBufferValue)
-            {
-                depthBuffer[pixelPosX, pixelPosY] = depth;
-                if (Game.instance.drawModeNum == 4)
-                {
-                    Console.WriteLine(depth);
-                    Game.instance.DrawPixel(pixelPosX, pixelPosY, color);
-                }
-                frameBuffer[pixelPosX, pixelPosY] = color.ToUint();
-            }
-        }
-        
-        void FrustumClipAndRasterizeSegments(int[] segments, Vec3[] cameraSpaceVertices)
-        {
-            for (int i = 0; i < segments.Length - 1; i += 2)
-            {
-                int index1 = segments[i];
-                int index2 = segments[i + 1];
-                Vec3 a = cameraSpaceVertices[index1];
-                Vec3 b = cameraSpaceVertices[index2];
 
-                // Frustum clipping
-                if (!(cameraSpaceFrustum.IsPointInside(a) && cameraSpaceFrustum.IsPointInside(b)))
-                {
-                    var result2 = cameraSpaceFrustum.ClipSegment(a, b);
-                    if (result2 == null) continue;
-                    a = result2.Item1; b = result2.Item2;
-                }
-                RasterizeSegment(a, b);
-            }
-        }
+        //Triangle rasterization algorithm
         void RasterizeTriangle(Vec3[] apices, ColorByte color, Vec3 preCalculatedNormal)
         {
             // Get diffuse lighting color
@@ -312,7 +204,7 @@ namespace ErisGameEngineSDL
                     float zRowDiff = zEnd - zStart;
                     float zReciRowDiff = zEndReci - zStartReci;
                     float rowXFloatDiff = rowEndFloat - rowStartFloat;
-                    
+
                     for (int i = 0; i <= rowXDiff; i++)
                     {
                         int currentPixelX = rowStart + i;
@@ -321,7 +213,7 @@ namespace ErisGameEngineSDL
                         float depthReci;
                         if (rowXFloatDiff == 0)
                         {
-                            depthReci = 1/peak.z;
+                            depthReci = 1 / peak.z;
                         }
                         else if (i == 0 && currentFloatX < rowStartFloat) depthReci = zStartReci;
                         else if (i == rowXDiff && currentFloatX > rowEndFloat) depthReci = zEndReci;
@@ -332,7 +224,7 @@ namespace ErisGameEngineSDL
                             depthReci = zStartReci + (lerpT * zReciRowDiff);
                         }
                         float depth = 1 / depthReci;
-                        DepthWrite(currentPixelX, yPixelCurrent, depth, diffuse, preCalculatedNormal);
+                        DepthWrite(currentPixelX, yPixelCurrent, depth, diffuse);
                     }
                 }
             }
@@ -385,8 +277,8 @@ namespace ErisGameEngineSDL
                 float lerpT = (mid.y - top.y) / (bot.y - top.y);
                 float divPointX = (int)bot.x == (int)top.x ? bot.x : top.x + ((bot.x - top.x) * lerpT);
                 float topZreci = 1 / top.z;
-                float divPointDepthReci = topZreci + ((1/bot.z - topZreci) * lerpT);
-                Vec3 divPoint = new Vec3(divPointX, mid.y, 1/divPointDepthReci);
+                float divPointDepthReci = topZreci + ((1 / bot.z - topZreci) * lerpT);
+                Vec3 divPoint = new Vec3(divPointX, mid.y, 1 / divPointDepthReci);
 
                 //Sort mid and divPoint by x-value
                 Vec3 midLeft, midRight;
@@ -399,23 +291,171 @@ namespace ErisGameEngineSDL
 
             //Check for a flat top or bottom, if doens't have,
             //divide into two triangles with a flat bottom and flat top
-            if ((aPixel.y == bPixel.y && aPixel.y == cPixel.y) || (aPixel.x == bPixel.x && aPixel.x == cPixel.x)) 
+            if ((aPixel.y == bPixel.y && aPixel.y == cPixel.y) || (aPixel.x == bPixel.x && aPixel.x == cPixel.x))
                 return; //If no y- or x- pixel difference, don't draw the triangle
             if (aPixel.y == bPixel.y) Flat(a, b, c);
             else if (aPixel.y == cPixel.y) Flat(a, c, b);
             else if (bPixel.y == cPixel.y) Flat(b, c, a);
             else DivideTriangle();
         }
-        //Find centroid of the 3D triangle and get triangle color based on projected screen position and depth
-        ColorByte GetTrianglePositionColor(Vec3[] cameraSpaceApices)
+
+        //Transform object vertices from world space to camera transform space
+        Vec3[] ObjectVerticesToCameraSpace(Shaped3DObject so)
         {
-            Vec3 centroid3d = ITriangle.Centroid(cameraSpaceApices);
-            Vec2int centroidProj = Project(centroid3d);
-            byte color_r = (byte)(255 * centroidProj.x / (float)targetResolution.x);
-            byte color_g = (byte)(255 * centroidProj.y / (float)targetResolution.y);
-            byte color_b = (byte)(255 * Math.Clamp(1f - centroid3d.z / camera.farClipPlaneDistance, 0, 1f));
-            return new ColorByte(color_r, color_g, color_b);
+            Vec3[] vertices = so.transformedMesh.vertices;
+            Vec3 relPos = so.transform.position - cameraTransform.position;
+            Vec3[] verticesRelPos = vertices.Select(v => relPos + v).ToArray();
+            return Quaternion.RotateVectors(verticesRelPos, invertedCameraRotation, cameraRotation);
         }
+
+        //Compare depth to depthbuffer and write a color to the frame buffer
+        void DepthWrite(int pixelPosX, int pixelPosY, float depth, ColorByte color)
+        {
+            if (depth is float.NaN) Debug.Fail("NAN");
+            float depthBufferValue = depthBuffer[pixelPosX, pixelPosY];
+            if (depthBufferValue == 0 || depth <= depthBufferValue)
+            {
+                depthBuffer[pixelPosX, pixelPosY] = depth;
+                if (Game.instance.drawModeNum == 4)
+                {
+                    Game.instance.DrawPixel(pixelPosX, pixelPosY, color);
+                }
+                frameBuffer[pixelPosX, pixelPosY] = color.ToUint();
+            }
+        }
+
+        //Projection formula
+        Vec2int Project(Vec3 v) //Camera-relative position to resolution pixel coordinates
+        {
+            Vec2int framePos = new Vec2int(
+                   (int)(targetResolution.x * ((camera.viewPlaneDistance * v.x / (viewPortSize.x * v.z)) + 0.5f)),
+                   (int)(targetResolution.y * ((camera.viewPlaneDistance * v.y / (viewPortSize.y * v.z)) + 0.5f)));
+            if (framePos.x == targetResolution.x) framePos.x--;
+            if (framePos.y == targetResolution.y) framePos.y--;
+            return framePos;
+        }
+        Vec2 ProjectFloat(Vec3 v) //Camera-relative position to unrounded resolution coordinates
+        {
+            Vec2 framePos = new Vec2(
+                   targetResolution.x * ((camera.viewPlaneDistance * v.x / (viewPortSize.x * v.z)) + 0.5f),
+                   targetResolution.y * ((camera.viewPlaneDistance * v.y / (viewPortSize.y * v.z)) + 0.5f));
+            return framePos;
+        }
+
+
+
+        //Methods needed for drawing in other drawing methods:
+
+
+        //Render only segments of triangles, with only frustum segment clipping.
+        public uint[,] RenderTriangleSegmentsNoClip(Shaped3DObject[] sceneObjects)
+        {
+            //Clear frame buffer and depth buffer
+            frameBuffer = new uint[targetResolution.x, targetResolution.y];
+            depthBuffer = new float[targetResolution.x, targetResolution.y];
+
+            //Get camera rotation for rotating vertices
+            cameraRotation = camera.transform.rotation;
+            invertedCameraRotation = cameraRotation.inverted();
+            foreach (Shaped3DObject so in sceneObjects)
+            {
+                if (so == null) continue;
+                //Transformed vertices from object space to camera space
+                Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(so);
+
+                //Frustum culling
+                if (!worldSpaceFrustum.IsObjectPartlyInside(so)) continue;
+
+                //Get segments from triangles, frustum clip them and rasterize to screen.
+                int[] segments = GetSegmentsFromIndexTriangles(so.transformedMesh.triangles);
+                FrustumClipAndRasterizeSegments(segments, cameraSpaceVertices);
+            }
+            return frameBuffer;
+        }
+
+        //Render only segments of triangles, with frustum triangle clipping visible.
+        public uint[,] RenderTriangleSegments(Shaped3DObject[] sceneObjects)
+        {
+            //Clear frame buffer and depth buffer
+            frameBuffer = new uint[targetResolution.x, targetResolution.y];
+            depthBuffer = new float[targetResolution.x, targetResolution.y];
+
+            //Get camera rotation for rotating vertices
+            cameraRotation = camera.transform.rotation;
+            invertedCameraRotation = cameraRotation.inverted();
+
+            foreach (Shaped3DObject so in sceneObjects)
+            {
+                if (so == null) continue;
+                //transformed vertices from object space to camera space
+                Vec3[] cameraSpaceVertices = ObjectVerticesToCameraSpace(so);
+
+                //Frustum culling
+                if (!worldSpaceFrustum.IsObjectPartlyInside(so)) continue;
+
+                //If gameobject completely inside frustum, render triangle segments as they are.
+                IndexTriangle[] indexTriangles = so.transformedMesh.triangles;
+                if (worldSpaceFrustum.IsObjectCompletelyInside(so))
+                {
+                    RasterizeSegments(GetSegmentsFromIndexTriangles(indexTriangles), cameraSpaceVertices);
+                    continue;
+                }
+                //Else, clip triangles first
+                ITriangle[] clippedTriangles = cameraSpaceFrustum.ClipTriangles(cameraSpaceVertices, indexTriangles);
+
+                //Rasterize triangles to frame buffer
+                foreach (ITriangle triangle in clippedTriangles)
+                {
+                    Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
+                    Vec3 a = apices[0];
+                    Vec3 b = apices[1];
+                    Vec3 c = apices[2];
+
+                    //Rasterize each segment of the triangle
+                    RasterizeSegment(a, b);
+                    RasterizeSegment(b, c);
+                    RasterizeSegment(c, a);
+                }
+            }
+            return frameBuffer;
+        }
+
+        //Get all segments of triangles into an array of indices pointing to vertices
+        //[A,B,B,C,C,A,...]
+        int[] GetSegmentsFromIndexTriangles(IndexTriangle[] triangles)
+        {
+            List<int> segments = new List<int>();
+            foreach (IndexTriangle triangle in triangles)
+            {
+                int[] indices = triangle.indices;
+                int[] triangleSegments = triangleSegmentIndices.Select(i => indices[i]).ToArray();
+                segments.AddRange(triangleSegments);
+            }
+            return segments.ToArray();
+        }
+        
+        //Clip segments to frustum and rasterize them
+        void FrustumClipAndRasterizeSegments(int[] segments, Vec3[] cameraSpaceVertices)
+        {
+            for (int i = 0; i < segments.Length - 1; i += 2)
+            {
+                int index1 = segments[i];
+                int index2 = segments[i + 1];
+                Vec3 a = cameraSpaceVertices[index1];
+                Vec3 b = cameraSpaceVertices[index2];
+
+                // Frustum clipping
+                if (!(cameraSpaceFrustum.IsPointInside(a) && cameraSpaceFrustum.IsPointInside(b)))
+                {
+                    var result2 = cameraSpaceFrustum.ClipSegment(a, b);
+                    if (result2 == null) continue;
+                    a = result2.Item1; b = result2.Item2;
+                }
+                RasterizeSegment(a, b);
+            }
+        }
+
+        //Rasterize segments from segment indices
         void RasterizeSegments(int[] segments, Vec3[] cameraSpaceVertices)
         {
             for (int i = 0; i < segments.Length - 1; i += 2)
@@ -427,6 +467,8 @@ namespace ErisGameEngineSDL
                 RasterizeSegment(a, b);
             }
         }
+
+        //Algorithm for rasterizing a segment
         void RasterizeSegment(Vec3 a, Vec3 b)
         {
             // Rasterize segment with depth to frame buffer
@@ -456,21 +498,17 @@ namespace ErisGameEngineSDL
                 }
             }
         }
-        Vec2int Project(Vec3 v) //Camera-relative position to resolution pixel coordinates
+
+        //Find centroid of the 3D triangle and get triangle color based on projected screen position and depth
+        //Currently unused
+        ColorByte GetTrianglePositionColor(Vec3[] cameraSpaceApices)
         {
-            Vec2int framePos = new Vec2int(
-                   (int)(targetResolution.x * ((camera.viewPlaneDistance * v.x  / (viewPortSize.x*v.z)) + 0.5f)),
-                   (int)(targetResolution.y * ((camera.viewPlaneDistance * v.y / (viewPortSize.y*v.z)) + 0.5f)));
-            if (framePos.x == targetResolution.x) framePos.x--;
-            if (framePos.y == targetResolution.y) framePos.y--;
-            return framePos;
-        }
-        Vec2 ProjectFloat(Vec3 v) //Camera-relative position to unrounded resolution coordinates
-        {
-            Vec2 framePos = new Vec2(
-                   targetResolution.x * ((camera.viewPlaneDistance * v.x / (viewPortSize.x * v.z)) + 0.5f),
-                   targetResolution.y * ((camera.viewPlaneDistance * v.y / (viewPortSize.y * v.z)) + 0.5f));
-            return framePos;
+            Vec3 centroid3d = ITriangle.Centroid(cameraSpaceApices);
+            Vec2int centroidProj = Project(centroid3d);
+            byte color_r = (byte)(255 * centroidProj.x / (float)targetResolution.x);
+            byte color_g = (byte)(255 * centroidProj.y / (float)targetResolution.y);
+            byte color_b = (byte)(255 * Math.Clamp(1f - centroid3d.z / camera.farClipPlaneDistance, 0, 1f));
+            return new ColorByte(color_r, color_g, color_b);
         }
     }
 }

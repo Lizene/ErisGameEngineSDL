@@ -11,6 +11,8 @@ namespace ErisLibraries
 {
     internal struct Mesh
     {
+        //Struct for storing vertices of a 3D object and
+        //triangles linking those vertices to form surfaces
         public Vec3[] vertices;
         public IndexTriangle[] triangles;
         public Mesh(Vec3[] vertices, IndexTriangle[] triangles) 
@@ -43,6 +45,8 @@ namespace ErisLibraries
             IndexTriangle[] triangles = TrianglesFromTrisInts(verts, tris, color);
             return new Mesh(verts, triangles);
         }
+        //Create triangle objects from the traditional style of
+        //an array of triangle indexes pointing to an array of vertices
         static IndexTriangle[] TrianglesFromTrisInts(Vec3[] verts, int[] tris, ColorByte color)
         {
             List<IndexTriangle> triangleObjsList = new List<IndexTriangle>();
