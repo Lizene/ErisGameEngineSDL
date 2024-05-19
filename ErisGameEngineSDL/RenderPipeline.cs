@@ -89,13 +89,23 @@ namespace ErisGameEngineSDL
 
                 //If gameobject completely inside frustum, render triangles as they are.
                 Vec3 camPos = camera.transform.position;
+
+                //One line method for cooking diffuse lighting
+                ColorByte GetDiffuseColor(ColorByte color, Vec3 normal)
+                {
+                    return color * Math.Clamp((Vec3.Dot(normal, globalLightDir) + 1) / 2, ambientLighting, 1);
+                }
                 if (worldSpaceFrustum.IsObjectCompletelyInside(so))
                 {
                     //Rasterize triangles to frame buffer
                     foreach (IndexTriangle triangle in cameraFacingTriangles)
                     {
                         Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
-                        RasterizeTriangle(apices, triangle.color, triangle.normal);
+
+                        // Get diffuse lighting color
+                        ColorByte diffuse = GetDiffuseColor(triangle.color, triangle.normal);
+
+                        RasterizeTriangle(apices, diffuse);
                     }
                     continue;
                 }
@@ -107,24 +117,23 @@ namespace ErisGameEngineSDL
                     Vec3 normal = triangle.GetNormal();
                     Vec3[] apices = triangle.GetApices(cameraSpaceVertices);
                     ColorByte color = triangle.GetColor();
-                    RasterizeTriangle(apices, color, normal);
+
+                    // Get diffuse lighting color
+                    ColorByte diffuse = GetDiffuseColor(color, normal);
+
+                    RasterizeTriangle(apices, diffuse);
                 }
             }
             return frameBuffer;
         }
 
         //Triangle rasterization algorithm
-        void RasterizeTriangle(Vec3[] apices, ColorByte color, Vec3 preCalculatedNormal)
+        void RasterizeTriangle(Vec3[] apices, ColorByte color)
         {
-            // Get diffuse lighting color
-            ColorByte diffuse = color * Math.Clamp((Vec3.Dot(preCalculatedNormal, globalLightDir) + 1) / 2, ambientLighting, 1);
-
             // Camera-relative apices
             Vec3 aRel = apices[0];
             Vec3 bRel = apices[1];
             Vec3 cRel = apices[2];
-            if (aRel.z < 0 || aRel.z < 0 || aRel.z < 0) Console.WriteLine("Depth is negative");
-
 
             // Projected vertices (not rounded to pixels)
             Vec2 aProj = ProjectFloat(aRel);
@@ -227,7 +236,7 @@ namespace ErisGameEngineSDL
                             depthReci = zStartReci + (lerpT * zReciRowDiff);
                         }
                         float depth = 1 / depthReci;
-                        DepthWrite(currentPixelX, yPixelCurrent, depth, diffuse);
+                        DepthWrite(currentPixelX, yPixelCurrent, depth, color);
                     }
                 }
             }
@@ -333,7 +342,7 @@ namespace ErisGameEngineSDL
             Vec2int framePos = new Vec2int(
                    (int)(targetResolution.x * ((camera.viewPlaneDistance * v.x / (viewPortSize.x * v.z)) + 0.5f)),
                    (int)(targetResolution.y * ((camera.viewPlaneDistance * v.y / (viewPortSize.y * v.z)) + 0.5f)));
-            if (framePos.x == targetResolution.x) framePos.x--;
+            if (framePos.x == targetResolution.x) framePos.x--; //Rounding to screen edge
             if (framePos.y == targetResolution.y) framePos.y--;
             return framePos;
         }

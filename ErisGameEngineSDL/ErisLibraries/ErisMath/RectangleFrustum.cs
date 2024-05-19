@@ -275,6 +275,7 @@ namespace ErisMath
                     else indicesOutside.Add(index);
                 }
                 int countApicesInside = indicesInside.Count;
+
                 switch (countApicesInside)
                 {
                     case 0:
@@ -362,9 +363,8 @@ namespace ErisMath
                         (IntSectPlanes.Contains(2) && IntSectPlanes.Contains(3))
                         || (IntSectPlanes.Contains(4) && IntSectPlanes.Contains(5));
 
-                    if (OSFIntersectionPoints.Length == 0)
+                    if (OSFIntersectionPoints.Length == 0) //If didn't intersect with frustum
                     {
-                        //If didn't intersect with frustum
                         if (firstPairIsOppositePlanes)
                         {
                             int midPlane;

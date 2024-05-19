@@ -82,7 +82,7 @@ namespace ErisGameEngineSDL
         Vec2int windowFit, fitStart;
         Vec2 fitResRatio;
         int pixelXstart, pixelYstart;
-        public byte drawModeNum = 2;
+        public byte drawModeNum = 3;
         private int resXtimesY;
 
         public Game()
@@ -95,6 +95,8 @@ namespace ErisGameEngineSDL
         public void Start()
         {
             InitWindow();
+            CreateCameraAndRenderPipeline();
+            ResizeWindow();
             InitTime();
             InitInput();
             CreateObjects();
@@ -160,17 +162,19 @@ namespace ErisGameEngineSDL
             //Downscale effect
             SDL.SDL_RenderSetScale(renderer, resolutionDownScale, resolutionDownScale);
 
-            //Create camera and render pipeline objects
+            
+        }
+        void CreateCameraAndRenderPipeline()
+        {
             Vec2 viewPortSize = new Vec2();
             viewPortSize.y = 1f;
             viewPortSize.x = viewPortSize.y * resolutionRatio;
-            cameraTransform = new Transform(new Vec3(0,0,-7));
+            cameraTransform = new Transform(new Vec3(0, 0, -7));
             float FOV = 100f;
             float farClipPlaneDistance = 50f;
             float nearClipPlaneDistance = 0.1f;
             camera = new Camera(cameraTransform, FOV, nearClipPlaneDistance, farClipPlaneDistance, viewPortSize);
             pipeline = new RenderPipeline(targetResolution, camera);
-            ResizeWindow();
         }
         void InitTime()
         {
