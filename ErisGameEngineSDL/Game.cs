@@ -40,7 +40,7 @@ namespace ErisGameEngineSDL
         private nint renderTexture;
         private SDL.SDL_Rect renderRect;
         Vec2int windowSize, screenSize, halfScreenSize, targetResolution;
-        readonly int resolutionDownScale = 2;
+        readonly int resolutionDownScale = 1;
         float resolutionRatio;
         [AllowNull] RenderPipeline pipeline;
 
