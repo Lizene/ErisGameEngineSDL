@@ -1,4 +1,4 @@
-To test the program yourself, download the build and run the executable.
+To test the program yourself, download the repository, go to the build and run the executable.
 
 Controls:<br>
 
