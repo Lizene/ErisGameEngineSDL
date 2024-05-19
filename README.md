@@ -9,4 +9,4 @@ render current triangle rasterization mode frame pixel by pixel -> number key 4 
 switch scene to two triangles -> tab <br>
 </p>
 
-Notes: Colors are random every time the program is run. Downscale factors is set to 3. The fps limit set to 100, though it doesn't seem to work as it should.
+Notes: Colors are random every time the program is run. Downscale factors is set to 2. The fps limit set to 100, though it doesn't seem to work as it should.
