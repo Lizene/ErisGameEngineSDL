@@ -40,7 +40,7 @@ namespace ErisGameEngineSDL
         private nint renderTexture;
         private SDL.SDL_Rect renderRect;
         Vec2int windowSize, screenSize, halfScreenSize, targetResolution;
-        readonly int resolutionDownScale = 1;
+        readonly int resolutionDownScale = 2;
         float resolutionRatio;
         [AllowNull] RenderPipeline pipeline;
 
@@ -54,7 +54,7 @@ namespace ErisGameEngineSDL
         readonly float mouseSensitivity = 0.5f;
 
         //FPS limit
-        ushort fpsLimit = 60000;
+        ushort fpsLimit = 100;
         uint deltaTimeFloor;
         float deltaTime;
         uint milliSecondCounter = 0;
@@ -259,6 +259,7 @@ namespace ErisGameEngineSDL
                     //The X on the top right corner of the window
                     case SDL.SDL_EventType.SDL_QUIT:
                         quit = true;
+                        if (drawModeNum == 4) Quit(0); 
                         break;
                     //Key input
                     case SDL.SDL_EventType.SDL_KEYDOWN:
@@ -288,7 +289,7 @@ namespace ErisGameEngineSDL
                             case SDL.SDL_Keycode.SDLK_3:
                                 drawModeNum = 3; SwitchDrawMethod(); break;
                             case SDL.SDL_Keycode.SDLK_4:
-                                drawModeNum = 4; SwitchDrawMethod(); DrawClearAndRenderPresent(); break;
+                                drawModeNum = 4; SwitchDrawMethod(); break;
                         }
                         break;
                     case SDL.SDL_EventType.SDL_KEYUP:
@@ -512,10 +513,12 @@ namespace ErisGameEngineSDL
             SDL.SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 1);
             SDL.SDL_RenderDrawPoint(renderer, x, targetResolution.y - 1 - y);
             SDL.SDL_RenderPresent(renderer);
-            //Thread.Sleep(4);
+            //Thread.Sleep(1);
         }
         void SwitchDrawMethod()
         {
+            //Stop current framebuffer task
+            
             //Store the currently used drawing method to a delegate
             //that takes the scene and returns a frame buffer
             drawMethod = drawModeNum switch
@@ -526,17 +529,41 @@ namespace ErisGameEngineSDL
                 4 => pipeline.RenderTriangles,
                 _ => x => new uint[0, 0]
             };
+            
         }
+        
+        uint[,] frameBuffer;
+        Task getFrameBufferTask;
+        int previousTaskNum = 3;
         void Draw()
         {
-            //Draw selected scene with selected draw method
-            uint[,] frameBuffer = drawMethod(sceneSwitch ? twoTrianglesScene : mainScene);
+            //Draw selected scene with selected draw method and run the pipeline on a separate thread
+            void GetFrameBuffer()
+            {
+                if (drawModeNum == 4) DrawClear();
+                frameBuffer = instance.drawMethod(instance.sceneSwitch ? instance.twoTrianglesScene : instance.mainScene);
+            }
+            if (frameBuffer is null)
+            {
+                getFrameBufferTask = Task.Run(GetFrameBuffer);
+            }
+            if (drawModeNum == 4)
+            {
+                //Allow events while drawing pixel by pixel (visualizing triangle rasterization)
+                while (getFrameBufferTask.Status == TaskStatus.Running)
+                {
+                    Events();
+                    if (drawModeNum != 4) break;
+                    if (quit) Quit(0);
+                }
+                if (drawModeNum == 4 && previousTaskNum == 4) Thread.Sleep(500);
+            }
+            //Wait for draw task to 
+            if (getFrameBufferTask is not null) getFrameBufferTask.Wait(Timeout.InfiniteTimeSpan);
             DrawFrameBuffer(frameBuffer);
-            
-            //Pixel by pixel triangle drawing mode
-            if (drawModeNum != 4) return;
-            Thread.Sleep(500);
-            DrawClearAndRenderPresent();
+            //The main thread can make another update while the pipeline thread gets another frame buffer
+            getFrameBufferTask = Task.Run(GetFrameBuffer);
+            previousTaskNum = drawModeNum;
         }
         public void Quit(int exitCode)
         {
